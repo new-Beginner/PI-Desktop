@@ -49,6 +49,16 @@ existing native notification policy. Ask titles deliberately do not interpolate
 the session title, because generated titles may contain tool-call text. The ask
 event plays one soft in-app chime; its toast does not play a second one.
 
+The toast retains its originating session. Clicking its message, or activating
+the focused message button with Enter/Space, dismisses that toast and opens
+the conversation through normal session selection, including project alignment
+and pending-question restoration. Receipt alone never navigates. Closing the
+toast or selecting its text does not open a conversation. Hover and keyboard
+focus pause auto-dismiss. Identical prompts from different sessions keep
+separate targets; repeats within one session still replace the earlier toast.
+Navigation failures show an error toast without resolving the pending question.
+Ordinary toasts without a session target remain non-interactive.
+
 ## 4. Tool output
 
 The response is the normal tool result returned to the model and persisted with
