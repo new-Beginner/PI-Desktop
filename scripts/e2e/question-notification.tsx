@@ -144,10 +144,14 @@ globalThis.questionNotificationProbe = async () => {
   // Start at the empty New task surface, as in the reported screenshot.
   reset();
   const request = ask("B");
+  const originalToastId = useAppStore.getState().toasts[0]?.id;
   assert(useAppStore.getState().activeSessionId === undefined, "Receipt must not navigate automatically");
   action("B").click();
+  assert(useAppStore.getState().toasts.some((item) => item.id === originalToastId),
+    "Question toast disappeared before navigation succeeded");
   await selected("B");
-  assert(!useAppStore.getState().toasts.some((item) => item.sessionId === "B"), "Activated toast was not dismissed");
+  await until(() => !useAppStore.getState().toasts.some((item) => item.id === originalToastId),
+    "successful navigation dismisses the original toast");
   const option = document.querySelector<HTMLButtonElement>(".asktool-option");
   assert(option, "Pending question is not answerable");
   flushSync(() => option.click());
@@ -226,11 +230,18 @@ globalThis.questionNotificationProbe = async () => {
   // Failures remain visible and the question stays pending.
   reset();
   ask("B"); rejectReads = true;
+  const failedToastId = useAppStore.getState().toasts[0]?.id;
   action("B").click();
   await until(() => useAppStore.getState().toasts.some((item) => item.variant === "error" &&
     item.message.includes("Fixture history unavailable")), "navigation failure feedback");
   rejectReads = false;
   assert(headAsk(useAppStore.getState().pendingAsks, "B"), "Navigation failure discarded the pending question");
+  assert(useAppStore.getState().toasts.some((item) => item.id === failedToastId),
+    "Navigation failure discarded the original question reminder");
+  action("B").click();
+  await selected("B");
+  await until(() => !useAppStore.getState().toasts.some((item) => item.id === failedToastId),
+    "successful retry dismisses the retained reminder");
   assert(unexpected.length === 0, `Unexpected IPC: ${unexpected}`);
 
   // The runner delivers real Chromium keyboard events after focusing the action.
@@ -245,5 +256,5 @@ globalThis.questionNotificationProbe = async () => {
     assert(unexpected.length === 0, `Unexpected IPC: ${unexpected}`);
   };
   return { ok: true, home: true, crossProject: true, answered: true, distinctTargets: true,
-    dismiss: true, textSelection: true, focusTimer: true, ordinaryToast: true, errorFeedback: true };
+    dismiss: true, textSelection: true, focusTimer: true, ordinaryToast: true, errorFeedback: true, retry: true };
 };

@@ -88,8 +88,9 @@ function ToastCard({ item }: { item: ToastItem }) {
             // Dragging to copy the question is not a navigation gesture.
             const selection = window.getSelection();
             if (!selection?.isCollapsed && selection?.containsNode(event.currentTarget, true)) return;
-            dismissToast(item.id);
-            void useAppStore.getState().selectSession(sessionId).catch((error) => {
+            void useAppStore.getState().selectSession(sessionId).then(() => {
+              dismissToast(item.id);
+            }).catch((error) => {
               useAppStore.getState().showToast(error instanceof Error ? error.message : String(error), {
                 variant: "error",
               });

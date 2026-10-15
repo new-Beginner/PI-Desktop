@@ -11070,7 +11070,9 @@ This test plan spec is accepted when:
   message button. Dismiss and text selection do not navigate. Identical prompt
   text from two sessions preserves two independent navigation targets; ordinary
   info toasts stay non-interactive. A history-read failure produces a visible
-  error and leaves the question pending.
+  error and leaves both the original reminder and question pending. Retrying
+  from that same reminder after the read recovers opens the correct chat and
+  dismisses the reminder only after navigation succeeds.
 - **Specs linked**: `03-runtime/17-asktool-questions.md`,
   `04-ux/11-asktool-question-card.md`, ADR 0077
 - **Acceptance**: E (interactive tool output), C (inline card)
