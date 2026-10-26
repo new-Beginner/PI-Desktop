@@ -1421,3 +1421,18 @@ An unknown price is distinct from a known zero price; partial known costs remain
 on the individual operations. Late usage targets its captured turn and does not
 revive it or debit the currently active turn. Immediate nested parent and owning
 Task remain separate optional transcript/event fields.
+
+## 提供商模板绑定——schema 25
+
+v24→v25 迁移先创建备份，再创建 `provider_template_bindings`，
+并在事务中推进 `PRAGMA user_version`。列为：
+`provider_id TEXT PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE`、
+`template_id TEXT NOT NULL`、`version INTEGER NOT NULL CHECK(version=1)`、
+`definition_json TEXT NOT NULL`。所有者仍保存在 `providers.owner_plugin_id`；
+定义只保存已校验模板元数据，绝不保存凭据。
+
+现有提供商不更名，也不被自动接管。旧版与官方账号、加密密钥、模型偏好及显式空选择保持不变。
+`config_json.pluginTemplate.pending` 标记新建但未完成的 OAuth 账号；
+启动时清理遗留待登录账号并使清理错误可观测，不清理已经完成、只是需要重新认证的账号。
+删除单个账号会级联删除绑定；卸载删除自有账号与密钥，但保留历史对话。
+参见 [模板账号生命周期](../07-plugins/17-provider-template-accounts.md)。

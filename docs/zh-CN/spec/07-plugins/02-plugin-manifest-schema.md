@@ -155,6 +155,7 @@ type PluginContributes = {
  skills?: Array<string | PluginSkillContrib>; // relative paths, or metadata overrides
  agentExtensions?: string[]; // 在 agent sidecar 内运行的 ExtensionAPI 模块；需要 `agent.extension`（规格 16）
  providers?: PluginProviderContrib[]; // 宿主拥有的 provider 行；需要 `provider.register`（规格 13）
+ providerTemplates?: PluginProviderTemplateV1[]; // Reusable native-account entries; see section 5.5
  settings?: PluginSettingContrib[];
  themes?: PluginThemeContrib[];
  windowAppearance?: PluginWindowAppearanceContrib; // 原生窗口背景；需要 `ui.window.appearance`
@@ -274,7 +275,9 @@ type PluginProviderContrib = {
  vendorKey?: string; // models.dev 供应商键，默认 `custom`
  baseUrl?: string; // 绝对 http(s) URL
  apiStyle?: PluginProviderApiStyle; // 线路风格，默认 `chat_completions`
- authKind?: "api_key" | "none"; // 默认 `api_key`；`oauth` 暂被拒绝
+ authKind?: "api_key" | "none" | "oauth"; // default `api_key`
+ oauth?: { loginLabel?: string; isSubscription?: boolean }; // only with `authKind: "oauth"`
+ adapter?: { version: 1; chat?: boolean; images?: boolean }; // needs `provider.inference`
  models: PluginProviderModelContrib[]; // 1..64 条
 };
 
@@ -293,6 +296,7 @@ type PluginProviderModelContrib = {
  contextWindow?: number;
  maxTokens?: number;
  supportsImages?: boolean;
+ operations?: ("chat" | "images")[]; // adapter models only; absent inherits provider operations
  /** 模型可提供的规范思考档位，按声明顺序保留。 */
  thinkingLevels?: string[];
  /** 当该值存在于 `thinkingLevels` 时，新会话使用它。 */
@@ -435,7 +439,7 @@ type PluginNetDomains = string[]; // "api.example.com" 或 "*.example.com"
 ```
 
 
-## 5.4 providers —— 插件声明的 provider 行
+## 5.4 providers —— 旧版单例提供商行
 
 `contributes.providers` 声明的 provider 行由宿主写入原生 provider 列表，并归该插件所有
 （[ADR 0259](../../../adr/0259-plugin-declared-providers.md)）。每个插件不设 provider 数量上限，
@@ -457,17 +461,36 @@ type PluginNetDomains = string[]; // "api.example.com" 或 "*.example.com"
   `loginLabel` 和 `isSubscription`
 - `models` 最多 64 条，id 唯一且长度为 1..256。仅当 provider 使用 API Key 且配置了
   `baseUrl` 时，才允许为空；用户保存 Key 后，宿主会发现并缓存该端点提供的模型
+- 可选 `adapter` 选择版本化的插件推理传输。V1 的 `chat`／`images` 至少一项为 true，
+  必须同时有 `provider.register`、`provider.inference`，并导出匹配的
+  `providerAdapters[provider.id]`。模型 `operations` 可限制为适配器已声明操作的非空子集。
+  仅图像模型不进入聊天候选；`supportsImages` 表示图像输入而非生成。
+  用户偏好不能增加未声明操作。不设 `adapter` 时沿用兼容传输。
+  参见 [推理 API](03-plugin-api.md#全局提供商推理适配器)。
 
 非空的 `contributes.providers` 需要高风险权限 `provider.register`
 （[13-plugin-permissions-matrix.md](/zh-CN/spec/07-plugins/13-plugin-permissions-matrix)）。
-声明会在每次插件加载时重新读取，并对其自身字段具有权威；禁用插件会保留这些行并
-将其关闭，而删除声明或卸载插件会连同已存凭据一起删除该行。
+声明在每次插件加载时重新读取，提供传输身份与默认值。
+在原生设置中保存的显式模型、显示名和启用偏好优先于默认值，且跨重载保留。
+禁用插件强制关闭其行但不清除偏好；删除声明或卸载插件会删除行及已存凭据。
+声明的端点／协议／认证变更会使旧凭据、自定义 headers、OAuth 元数据与发现缓存失效。
+参见 [模型偏好决策](/adr/plugin-provider-user-model-preferences)。
 
 OAuth 登录使用宿主自有的账号界面和加密凭据存储。宿主通过
 `pi.providers.oauth.prompt` / `notify` 显示登录提示和进度；OAuth 回调只收到该插件
 自身 provider 的凭据。刷新令牌保留在 Electron 主进程与宿主密钥库内，Agent Runtime
 只接收请求所需的访问令牌。每个 provider 声明目前只支持一个账号；宿主插件进程不是
 操作系统沙箱，因此授予 `provider.oauth` 表示信任该插件处理此 provider 的凭据。
+
+## 5.5 providerTemplates —— 可复用的原生账号集成
+
+`contributes.providerTemplates` 使用封闭的 `PluginProviderTemplateV1` 对象与 `version: 1`；
+模板 ID 必须跨两个 provider 数组唯一。安装模板仅添加选择器入口，
+用户显式执行原生设置后由 Host 生成独立账号 ID；增删账号不移除入口。
+支持 API key、无认证与 OAuth。声明式 PKCE／设备码 OAuth 只需注册授权，
+不需自定义 OAuth 执行权限；自定义钩子与推理分别需要额外授权。旧版 §5.4 路径保持兼容。
+参见 [完整 V1 契约、示例、限额与生命周期](17-provider-template-accounts.md)。
+
 ## 6. activationEvents（可选）
 
 示例：
@@ -505,7 +528,8 @@ MVP 只能实现：
    有效模式（§5.1）
 12. 需要权限的贡献在权限验证时失败
    缺少：`themes` → `ui.theme`，`views` → `ui.view`，`providers` →
-   `provider.register`，`composerTransforms` → `composer.transform`，stdio
+   `provider.register`（模板也需要），旧版／自定义 OAuth → `provider.oauth`，
+   `composerTransforms` → `composer.transform`，stdio
    服务器 → `mcp.server.local`，远程服务器 → `mcp.server.remote`、`services` → `background.service`、
    `bus.publish` → `bus.publish`，`bus.subscribe` → `bus.subscribe`。
 `skills` 是一个例外 - 它早于权限门，因此清单

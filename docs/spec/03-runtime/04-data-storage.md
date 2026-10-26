@@ -1937,3 +1937,21 @@ An unknown price is distinct from a known zero price; partial known costs remain
 on the individual operations. Late usage targets its captured turn and does not
 revive it or debit the currently active turn. Immediate nested parent and owning
 Task remain separate optional transcript/event fields.
+
+## Provider template bindings — schema 25
+
+The v24→v25 migration creates `provider_template_bindings` after a migration
+backup, then advances `PRAGMA user_version` transactionally. Columns:
+`provider_id TEXT PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE`,
+`template_id TEXT NOT NULL`, `version INTEGER NOT NULL CHECK(version=1)`,
+`definition_json TEXT NOT NULL`. The owner remains `providers.owner_plugin_id`;
+the definition stores validated template metadata, never credentials.
+
+No existing provider is renamed or automatically adopted. Legacy and official
+accounts, encrypted secrets, model preferences and explicit empty selection
+remain intact. `config_json.pluginTemplate.pending` marks a new incomplete
+OAuth account; startup removes abandoned pending accounts with observable
+cleanup errors, not completed accounts that need reauthentication. Individual
+account deletion cascades the binding; uninstall deletes owned accounts/secrets
+but retains historical conversations. See
+[template account lifecycle](../07-plugins/17-provider-template-accounts.md).
