@@ -137,6 +137,12 @@ import { checkGenUiFragment, genUiFragmentCheckNote, isGenUiFragmentPath } from 
 import type { RuntimeHost } from "./host-client.js";
 import { classifyAgentError } from "./agent-errors.js";
 import {
+  captureAssistantProviderReplay,
+  restoreAssistantProviderReplay,
+  providerReplayForBubble,
+  providerReplayToolCallSignatures,
+} from "./assistant-provider-replay.js";
+import {
   assistantContent,
   isRecord,
   nowIso,
@@ -149,7 +155,10 @@ import {
 } from "./agent-messages.js";
 import { withExplicitRequired } from "./tool-schema.js";
 import { buildSessionContext } from "./session-context.js";
-import { prepareCompaction } from "./pi-runtime-compaction-plan.js";
+import {
+  collectMessageFileOperations,
+  prepareCompaction,
+} from "./pi-runtime-compaction-plan.js";
 import { compact } from "./pi-runtime-compaction-summary.js";
 import {
   ESTIMATED_TEXT_CHARS_PER_TOKEN,
@@ -260,6 +269,7 @@ import {
   addSummaryUsage,
   compactionSummaryInputLimit,
   compactionSummaryOutputBudget,
+  compactionSummaryReserveTokens,
   COMPACTION_SUMMARY_RETRY_POLICY,
   estimateSummaryPromptTokens,
   planSummaryChunks,
@@ -2300,14 +2310,6 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
           m.api,
           this.fastMode,
         );
-        // The watchdog must be able to *stop* what it abandons. It wraps the
-        // retry adapter, so draining alone would let the adapter wake from its
-        // backoff and open a second request for this turn while the runtime is
-        // already re-running the turn — two provider requests and two bills for
-        // one answer. So the stall trips a signal this request owns, combined
-        // with pi's own run signal (Stop must keep working): the adapter refuses
-        // to start an attempt on an aborted signal, and its backoff sleep rejects.
-        const stallAbort = new AbortController();
         // Both output clamps, ours and pi-ai's inside `streamSimple`, must see
         // the instructions the adapter sends, not every superseded snapshot.
         const requestContext = requestTranscript(m, context);
@@ -2319,24 +2321,33 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
           // `thinkingLevel: "omit"` would otherwise send it untouched, and
           // both consume an estimate that under-counts CJK text (issue B).
           maxTokens: clampOutputToContext(m, requestContext, hookedOptions.maxTokens),
-          signal: AbortSignal.any([
-            ...(hookedOptions.signal ? [hookedOptions.signal] : []),
-            stallAbort.signal,
-          ]),
         };
         const usageTurnId = this.turnId;
         const retryStream = createProviderRetryStream(
           m,
           requestContext,
           attemptOptions,
-          (retryOptions) => accountModelStream(m, () =>
-            this.thinkingLevel === "omit"
-              ? this.models.stream(omitThinkingModel(m), requestContext, retryOptions)
-              : this.models.streamSimple(m, requestContext, retryOptions), {
+          (retryOptions) => {
+            // Each network attempt owns its idle clock and abort signal.
+            // Deliberate backoff must not look like a stalled provider stream.
+            const stallAbort = new AbortController();
+            const timedOptions = {
+              ...retryOptions,
+              signal: AbortSignal.any([
+                ...(retryOptions.signal ? [retryOptions.signal] : []),
+                stallAbort.signal,
+              ]),
+            };
+            const stream = accountModelStream(m, () =>
+              this.thinkingLevel === "omit"
+                ? this.models.stream(omitThinkingModel(m), requestContext, timedOptions)
+                : this.models.streamSimple(m, requestContext, timedOptions), {
                 providerId: this.provider.id,
                 nativeCost: this.provider.modelConfig?.nativeCost,
                 onUsage: (usage) => this.emit({ type: "usage", usage }, usageTurnId),
-              }),
+              });
+            return withStreamIdleTimeout(stream, m, streamIdleTimeoutMs(), () => stallAbort.abort());
+          },
           {
             claim: (error, phase) => this.claimProviderRetry(error, phase),
             headers: () => this.providerRetryHeaders,
@@ -2354,14 +2365,7 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
             },
           },
         );
-        // Zero-event idle watchdog: a stream that emits nothing for the
-        // configured budget ends as a STREAM_FAILED error and re-enters the
-        // shared transient retry path instead of hanging the turn on a
-        // connection the provider never closes.
-        return this.uniqueToolCalls(
-          withStreamIdleTimeout(retryStream, m, streamIdleTimeoutMs(), () => stallAbort.abort()),
-          context.messages,
-        );
+        return this.uniqueToolCalls(retryStream, context.messages);
       },
       // A vendor account has no long-lived key. Leaving it unset keeps pi-ai
       // from overriding the auth the provider just resolved for this request.
@@ -3147,6 +3151,8 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
     // (the nearest one above), keeping each call adjacent to its result as
     // the provider APIs require.
     let toolCarrier: AssistantMessage | undefined;
+    // Function-call signatures of the carrier's row, restored by call id.
+    let carrierToolSignatures = new Map<string, string>();
     for (const m of orderSystemRows(history)) {
       // Subagent rows belong to the transcript and to review, never to the
       // parent's model context (ADR 0062): the parent only ever saw the `Task`
@@ -3186,21 +3192,35 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
         const content: AssistantMessage["content"] = [];
         // A replay placeholder the model echoed is not its reasoning; sending
         // it back is what kept the model continuing it (#1945).
-        const thinking = withoutReasoningReplayPlaceholder(m.thinking ?? "");
-        if (thinking.trim()) {
-          // Completions DeepSeek replay needs thinkingSignature so convertMessages
-          // maps the block to reasoning_content instead of dropping it (#296).
-          content.push({
-            type: "thinking" as const,
-            thinking,
-            ...(deepSeekCompletionsReplay
-              ? { thinkingSignature: "reasoning_content" as const }
-              : {}),
-          });
-        }
-        content.push(...restoreHostedSearchReplay(m.hostedSearch));
-        if (m.content?.trim()) {
-          content.push({ type: "text" as const, text: m.content });
+        const rawThinking = m.thinking ?? "";
+        const thinking = withoutReasoningReplayPlaceholder(rawThinking);
+        // Signed blocks restore the request the live runtime sent, so a
+        // rebuild keeps the provider's prompt cache (#1972). Rows that were
+        // cleaned above, or whose text no longer matches, keep the plain path.
+        const replayed = thinking === rawThinking
+          ? restoreAssistantProviderReplay(m.providerReplay, rawThinking, m.content ?? "")
+          : undefined;
+        if (replayed) {
+          const firstText = replayed.findIndex((block) => block.type === "text");
+          const hosted = restoreHostedSearchReplay(m.hostedSearch);
+          if (firstText < 0) content.push(...replayed, ...hosted);
+          else content.push(...replayed.slice(0, firstText), ...hosted, ...replayed.slice(firstText));
+        } else {
+          if (thinking.trim()) {
+            // Completions DeepSeek replay needs thinkingSignature so convertMessages
+            // maps the block to reasoning_content instead of dropping it (#296).
+            content.push({
+              type: "thinking" as const,
+              thinking,
+              ...(deepSeekCompletionsReplay
+                ? { thinkingSignature: "reasoning_content" as const }
+                : {}),
+            });
+          }
+          content.push(...restoreHostedSearchReplay(m.hostedSearch));
+          if (m.content?.trim()) {
+            content.push({ type: "text" as const, text: m.content });
+          }
         }
         // Kept even when empty: a call-only turn has no text of its own and
         // becomes the carrier for the tool rows that follow. Assistants that
@@ -3222,6 +3242,7 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
         };
         append(m.id, assistant);
         toolCarrier = assistant;
+        carrierToolSignatures = providerReplayToolCallSignatures(m.providerReplay);
       } else if (m.role === "tool") {
         if (!m.toolCallId || !m.toolName) continue;
         if (!toolCarrier) {
@@ -3238,12 +3259,15 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
             timestamp,
           };
           append(`${m.id}:carrier`, toolCarrier);
+          carrierToolSignatures = new Map();
         }
+        const thoughtSignature = carrierToolSignatures.get(m.toolCallId);
         toolCarrier.content.push({
           type: "toolCall",
           id: m.toolCallId,
           name: m.toolName,
           arguments: toJsonObject(m.toolArgs),
+          ...(thoughtSignature ? { thoughtSignature } : {}),
         });
         toolCarrier.stopReason = "toolUse";
         append(m.id, toolResultFromUi(m, timestamp));
@@ -3719,8 +3743,13 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
           // it armed is released here instead.
           if (abortGraceTimer) clearTimeout(abortGraceTimer);
         }
-        if (abortPromise) await abortPromise;
-        if (abortError) throw abortError;
+        // A local read-only stop cannot depend on the same Host answering a
+        // second RPC. Its abort request already observes late rejections.
+        // Other tools retain Host settlement ownership for their side effects.
+        if (!canAbandonWait) {
+          if (abortPromise) await abortPromise;
+          if (abortError) throw abortError;
+        }
         if (stopped) {
           throw Object.assign(
             new Error(`tool execution aborted while ${toolName} was running`),
@@ -7046,8 +7075,8 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
    *
    * pi's cut point is still what marks the boundary, but the split it produces
    * is folded back together (see `codexShapedPreparation`), so
-   * `budget.keepRecentTokens` no longer decides what survives — it only decides
-   * which messages pi attributes file operations to.
+   * `budget.keepRecentTokens` no longer decides what survives. File operations
+   * are collected from that whole folded range, including the retained tail.
    */
   private prepareCompactionInput(
     entries: Entry[],
@@ -7118,6 +7147,18 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
       ...preparation.turnPrefixMessages,
       ...preparation.retainedTail,
     ];
+    // pi records file operations for `messagesToSummarize` and, on a split
+    // turn, `turnPrefixMessages`. The tail is summarized too — including the
+    // suffix a split left uncollected — so copy the sets and record it there.
+    // The sets pi returned stay unchanged.
+    const fileOps: CompactionPreparation["fileOps"] = {
+      read: new Set(preparation.fileOps.read),
+      written: new Set(preparation.fileOps.written),
+      edited: new Set(preparation.fileOps.edited),
+    };
+    for (const message of preparation.retainedTail) {
+      collectMessageFileOperations(message, fileOps);
+    }
     const latestUser = messagesToSummarize
       .filter((message): message is UserMessage => message.role === "user")
       .at(-1);
@@ -7130,6 +7171,7 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
       turnPrefixMessages: [],
       isSplitTurn: false,
       retainedTail: selectRetainedUserMessages(candidates, retainedUserTokens),
+      fileOps,
     };
   }
 
@@ -7671,13 +7713,13 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
     budget: { hardLimit: number; requestHeadroom: number },
   ): AgentMessage[][] | undefined {
     const reduced = reduceSummaryInput(preparation) ?? preparation;
-    const reserveTokens = Math.max(
-      Math.ceil((preparation.previousSummary?.length ?? 0) / 4),
-      compactionSummaryOutputBudget({
+    const reserveTokens = compactionSummaryReserveTokens({
+      previousSummary: preparation.previousSummary,
+      outputBudget: compactionSummaryOutputBudget({
         requestHeadroom: budget.requestHeadroom,
         modelMaxTokens: this.model.maxTokens,
       }),
-    );
+    });
     return planSummaryChunks(reduced, {
       summaryInputLimit: this.summaryInputLimit(budget),
       reserveTokens,
@@ -8716,7 +8758,18 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
               ? { error: classifiedError, isError: true }
               : {}),
             ...(hostedSearch ? { hostedSearch } : {}),
+            // Signatures only describe this response's own blocks. A bubble
+            // that kept text from an earlier recovery attempt no longer lines
+            // up with them, so it keeps only the function-call signatures,
+            // which are linked by call id rather than by text position.
+            providerReplay: failed
+              ? undefined
+              : providerReplayForBubble(
+                  captureAssistantProviderReplay((event.message as any).content),
+                  nextText === content.text && nextThinking === content.thinking,
+                ),
           };
+          if (!this.currentAssistant.providerReplay) delete this.currentAssistant.providerReplay;
           this.emit({ type: "message_end", message: this.currentAssistant });
           this.activeProviderRetryAttempt = 0;
           this.streamStartedAt = undefined;

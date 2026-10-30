@@ -25,7 +25,102 @@
   deterministic regression does not claim to recover that missing evidence.
 
 
+### Windows background process snapshot clock
+
+- **Preconditions:** Isolated Windows Host and a synthetic background task.
+- **Steps:** Start a child and grandchild after Host startup, exercise stopping
+  through the production process-tree helper, and observe both owned processes.
+- **Expected:** Children created before the snapshot are not rejected as recycled
+  PIDs merely because they started after the Host. Descendants terminate before
+  their parent; unrelated/newer processes remain excluded and failures surface.
+- **Coverage:** `windows_process_tree` unit tests, including a real owned child
+  creation-time check; `e2e-background-tasks-host.mjs` for the Host workflow.
+- **Qualification:** A foreign-API fixture and Windows target compilation are
+  separate from native Windows execution; record which actually ran.
+
 ## 1. Goals
+
+### E2E-PROVIDER-retry-backoff-is-not-idle
+
+- **Entry:** Build shared and the production sidecar bundle, then run
+  `node scripts/e2e-provider-retry-idle.mjs` (about one minute).
+- **Sequence:** Use the supported 30-second idle setting. Return one HTTP 429
+  with a 30-second retry delay, then succeed. Separately hold an HTTP request
+  silent until its idle deadline, then let the retry succeed. Stop another
+  turn during its rate-limit backoff.
+- **Expected:** The planned wait consumes exactly one retry; the successful
+  follow-up is sent. A real stalled request closes before its replacement
+  begins, and Stop prevents a later retry request.
+- **Coverage:** Real production sidecar, provider adapter and localhost HTTP
+  server with fixture Host responses. Real-clock process checks are supplemented
+  by real Agent-loop tests under a controlled clock, including all ten allowed
+  rate-limit retries and exhaustion after eleven genuinely stalled attempts.
+- **Specs:** `03-runtime/02-agent-runtime.md` provider retry behavior.
+
+### E2E-TRANSCRIPT-scroll-interruption
+
+- **Preconditions:** Real Chromium with the production transcript scroll hook;
+  a scrollable transcript, manual disclosure reading, and normal motion.
+- **Steps:** Start a smooth navigation toward earlier history. Deliver
+  transcript-owned wheel input before yielding to its first animation frame.
+  Observe subsequent animation frames and run the long-history streaming probe.
+- **Expected:** Input stops the old browser animation at the current offset;
+  later frames cannot move the reader toward its stale destination. Streaming,
+  disclosure anchoring, pinned follow, and long-history work budgets still pass.
+- Repeat owned wheel, scroll-key, scrollbar-surface and touch inputs in the
+  main and delegated scrollers. Observe real browser calls to distinguish
+  application cancellation from Chromium's own pointer behavior. Button Space,
+  button presses, select arrows and nested wheel input must not request an
+  ancestor cancellation. Button Space must allow the original navigation to
+  finish. `e2e-transcript-turn-completion.mjs` also verifies normal completed-turn
+  prompt navigation and a reader's manually retained position.
+  Start smooth navigation immediately before toggling a real disclosure in
+  both main and delegated scrollers; its clicked title must keep its offset.
+- **Coverage:** `node scripts/e2e-transcript-disclosure-anchor.mjs` and
+  `node scripts/e2e-transcript-render.mjs`, plus
+  `node scripts/e2e-transcript-turn-completion.mjs`. CI runs the completion
+  probe in a visible window under Xvfb/Openbox: never-shown Linux windows can
+  throttle animation frames despite `backgroundThrottling: false`.
+- **Specs:** Interaction patterns §2.2. **Milestone:** Maintenance.
+- **Status:** Automated browser regression; the interruption assertion fails
+  without explicit cancellation of the browser-owned smooth navigation.
+
+### E2E-TRANSCRIPT-live-turn-not-tail-stays-running
+
+- **Preconditions:** Real transcript projection with the production
+  `ChatTranscript`; a running session whose turn has streaming rows, and a
+  steering message or system row rendered after that turn.
+- **Steps:** While the turn's tool or reasoning rows stream, append a steering
+  user message so the turn is no longer the tail entry. Observe the process
+  header, the disclosure state, and the turn menu. Then settle the rows;
+  separately stop the session mid-turn with rows left streaming.
+- **Expected:** The non-tail live turn keeps a running process header with its
+  activity marker, its process stays open, and copy/regenerate stay gated on
+  completion; the settled turn then reads completed. In a stopped or idle
+  transcript the same stuck rows read as an unknown outcome instead (#1923),
+  and a reading window over older history never claims live status (#1900).
+- **Coverage:** `node --test apps/desktop/test/turn-process.test.mjs` and
+  `apps/desktop/test/transcript-live-turn.test.mjs` pin the liveness selection,
+  the phase reading, and the wiring contract. Full Electron journey Draft.
+- **Specs:** `04-ux/08-component-spec.md` §turn-process; **Milestone:** Maintenance.
+- **Status:** Unit and source-contract regression; visual Electron scenario Draft.
+
+### E2E-CHECKPOINT-drain-before-host-exit
+
+- **Entry:** `node scripts/e2e-checkpoint-lifecycle.mjs` after building shared
+  and host-runtime dependencies.
+- **Sequence:** Hold a streaming checkpoint RPC, start runtime disposal, release
+  the save and restart the host peer. Then hold an older turn's save, settle its
+  message, start a new reply, and save a second session while the first is held.
+- **Expected:** Host disposal waits for the checkpoint acknowledgement; the
+  restarted peer reads the saved progress. A new save in the same session waits
+  for the older write, so the newest reply remains on disk. The independent
+  session saves while the other is blocked.
+- **Coverage:** Production `HostProcess`, `TurnEventPipeline` and
+  `InflightCheckpointer`, real child processes and temporary disk files; a
+  controlled Node JSON-RPC peer replaces Rust host-core. Unit tests cover late
+  settlement, snapshots arriving during a drain, failure recovery and throttling.
+- **Specs:** `03-runtime/04-data-storage.md` §4.7, ADR 0153.
 
 ### E2E model discovery membership
 
@@ -2060,6 +2155,7 @@ identify the platform validation still needed.
   for partial output, then stop during the stream. 4) Immediately send a new
   prompt after Stop returns, without waiting for an idle delay. 5) Start a
   read-only Grep that does not return, press Stop, then start another prompt.
+  Hold its `tools.abort` acknowledgement as well and repeat for Read and Glob.
   6) Start a Write that is waiting for permission, press Stop, then try to
   approve the stale request. 7) Observe the transcript, composer, and workspace.
 - **Expected**: The first Stop is honored even if prompt admission is still in
@@ -2067,7 +2163,9 @@ identify the platform validation still needed.
   streaming send stops with its partial response preserved and no draft
   restoration or duplicate user turn. The read-only tool returns
   `TOOL_ABORTED`, its late result is discarded, and the follow-up starts
-  without `AGENT_BUSY`. Stopping the pending Write cancels its permission;
+  without `AGENT_BUSY`, even while the cancellation acknowledgement is pending.
+  Late results or cancellation failures cannot change the follow-up turn.
+  Stopping the pending Write cancels its permission;
   approving the stale request fails and creates no file. A mutating operation
   that already started is not reported stopped before its Host result arrives.
 - **Specs linked**: `03-runtime/02-agent-runtime.md`,
@@ -2077,7 +2175,13 @@ identify the platform validation still needed.
 - **Milestone**: M2
 - **Status**: Runtime and Host cancellation contracts automated by
   `packages/agent-runtime/src/runtime.test.ts` and the pending-Write regression
-  in `crates/host-core/src/rpc/mod.rs`; rendered Electron interaction remains
+  in `crates/host-core/src/rpc/mod.rs`. `read-only-stop.test.ts` covers held
+  acknowledgements and late failures through real Agent loops.
+  After building shared and running `node packages/agent-runtime/scripts/bundle.mjs`,
+  `node scripts/e2e-read-only-stop.mjs` runs the production sidecar bundle and
+  a localhost provider, holding execution and cancellation responses at the Host
+  edge. It verifies follow-up prompts and the Write settlement boundary;
+  rendered Electron interaction remains
   a manual validation run.
 
 #### E2E-171: Streaming reply survives quit, crash, and stop
@@ -5368,25 +5472,32 @@ window; opening a normal panel afterward must still work.
 
 #### E2E-CHAT-radial-background-menu: Radial menu on the empty transcript background
 
-- **Preconditions**: Settings → AI → Radial context menu is available. A
+- **Preconditions**: Settings → General → Radial context menu is available. A
   session has a completed user prompt, a completed assistant answer, and enough
   history to scroll.
 - **Steps**: 1) With the switch off, right-click empty space below the last
   turn and confirm the vertical conversation menu. 2) Turn the switch on and
-  right-click the same space; inspect the four sectors. 3) Move the pointer
-  through each sector and click Copy conversation. 4) Set Up to Copy last
+  right-click the same space; inspect the four sectors and their at-rest
+  icon-and-label stacks. 3) Move the pointer through each sector and click
+  Copy conversation; reopen, press the right button over a sector and release
+  it there, and confirm the action runs. 4) Set Up to Copy last
   answer and Right to Leave empty, then reopen the ring. 5) Click the hub
   without moving, then reopen and press Escape; repeat with an outside click,
-  a scroll, and a window resize. 6) Reopen with Shift+F10, walk the sectors
-  with the arrow keys, and run one with Enter. 7) Restart the app, confirm the
-  switch and the four directions persist, then write an unknown action for one
-  direction into the settings file and confirm that direction resolves to its
-  default.
+  a scroll, and a window resize; reopen and right-press on a sector, then
+  release over the hub and confirm nothing runs. 6) Reopen with Shift+F10, walk
+  the sectors with the arrow keys, and run one with Enter. 7) Restart the app,
+  confirm the switch and the four directions persist, then write an unknown
+  action for one direction into the settings file and confirm that direction
+  resolves to its default.
 - **Expected**: With the switch off the vertical menu opens unchanged. With it
   on, a four-sector ring centred on the pointer replaces it and stays fully
-  inside the window near an edge. Each sector highlights under the pointer;
-  clicking runs that action, closes the ring, and shows the usual toast where
-  the action copies. A **Leave empty** direction renders a disabled sector and
+  inside the window near an edge. Every sector shows its action's icon and
+  label before any hover; the sector under the pointer highlights as a filled
+  sector, with no focus rectangle over it. Clicking runs that action, closes
+  the ring, and shows the usual toast where the action copies. A right-press
+  started while the ring is open runs the sector it is released on; releasing
+  over the hub dismisses without running, and the release trailing the
+  right-click that opened the ring runs nothing. A **Leave empty** direction renders a disabled sector and
   runs nothing; Copy last answer is disabled until an answer exists.
   Open browser reveals the work panel on a blank browser tab, the work panel
   direction toggles — it reads Open work panel while the panel is collapsed and
@@ -5404,8 +5515,9 @@ window; opening a normal panel afterward must still work.
 - **Acceptance**: C (chat stream), Quality
 - **Milestone**: M5
 - **Status**: Chromium component check (`node scripts/e2e-radial-menu.mjs`:
-  sector labels, pointer highlight, click/hub/disabled/Escape paths, arrow-key
-  focus, and viewport clamping) plus unit coverage (`radial-menu.test.mjs`,
+  at-rest sector labels, pointer highlight, click/hub/disabled/Escape paths,
+  the right-press marking release paths, arrow-key focus, and viewport
+  clamping) plus unit coverage (`radial-menu.test.mjs`,
   `settings-roundtrip.test.mjs`); full desktop journey Draft
 
 ### E2E-CHAT-delete-turn-preserves-other-live-outputs
@@ -8451,6 +8563,35 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   production main persistence and renderer projections with an isolated
   3,484-message transcript, three follow-up turns, restart, and a revision
   round trip. Set `PI_DESKTOP_HOST_BIN` to a host built from the candidate.
+
+#### E2E-REVIEW-append-state: Rolling back a historical tool card does not rewrite its session
+
+- **Preconditions**: An isolated real Host process, a temporary workspace with
+  a file changed by `Write`, and a transcript with 16 MiB of synthetic retained
+  tool output after the review-owning message. Use `--large` for 384 MiB.
+- **Steps**: Run `review.rollback`, compare the transcript prefix hash and
+  appended bytes, read the review with a one-message `messageAround` window,
+  read the tail, restart the Host, and retry the same rollback.
+- **Expected**: Workspace bytes are restored. The original transcript prefix
+  is unchanged and fewer than 256 bytes are appended. The selected card reads
+  `rolledBack` before and after restart, its original position and the last
+  message remain correct, and message count is unchanged. Retrying returns
+  `alreadyRolledBack` without appending another state record.
+- **Specs linked**: `03-runtime/04-data-storage.md` §2.0; ADR
+  [append-only-review-state](../../adr/append-only-review-state.md).
+- **Acceptance**: C (conversation), F (persistence), Quality.
+- **Milestone**: M6.
+- **Status**: Automated by `pnpm test:e2e:review-state`; set
+  `PI_DESKTOP_HOST_BIN` to the candidate Host binary. No provider or user data
+  is used. `transcripts::review_state_tests` additionally covers duplicate IDs,
+  snapshot isolation, disk cache reuse, intentional rewrites and torn appends.
+  `equal_length_state_appends_replay_in_file_order_across_cached_reads` pins
+  file-order precedence for equal-sized state appends through warm and cold
+  layouts. `truncate_from_folds_review_state_into_the_retained_prefix` verifies
+  that a later truncate removes the state log while retaining the effective
+  state in the surviving canonical tool message.
+  This validates the review-state trigger in #1836; it does not assert Windows
+  UI timing or eliminate full rewrites for deliberate history replacement.
 
 #### E2E-246: Retrying a large session truncates without a whole-transcript RPC
 
@@ -16430,24 +16571,34 @@ plugin-form fixtures in an isolated temporary directory at runtime.
   and at least one slash entry exists (builtin alias, template, plugin command,
   or Skill).
 - **Steps**:
-  1. With the draft empty, type `、` and inspect the composer.
+  1. With the draft empty, compose `、`, inspect the pre-edit text, then commit.
   2. Continue typing a command name and accept the highlighted row.
   3. Type a draft that contains `、` between other characters.
   4. Send a draft whose first character was typed as `、` without accepting any
      row.
+  5. Cancel a composition, then type `/` again. Also delete text after a
+     dropped `compositionend` and confirm the slash menu still reopens.
 - **Expected**: The committed `、` is rewritten to `/` in place, the ordinary
   slash menu opens with the same filtering and keyboard behavior as a typed
   `/`, and the caret stays after the substituted character. A `、` anywhere
   later in the draft stays untouched text, and the `@` file menu never reacts
-  to the mark.
+  to the mark. Pre-edit `、` remains unchanged until commit; the result is `/`,
+  never `/、`. Ordinary Chinese composition and punctuation in existing drafts
+  remain unchanged. Cancelling leaves a blank draft, and replacing the draft
+  releases the old composition's empty-draft origin.
 - **Specs linked**: `04-ux/04-builtin-commands.md` (§9),
   `04-ux/08-component-spec.md` (§11), `08-meta/decisions-log.md` (D405),
   ADR 0024, ADR 0231
 - **Acceptance**: C (conversation & stream), Localization, Quality
 - **Milestone**: M2
-- **Status**: Unit-covered (`packages/shared/src/composer-trigger.test.ts`,
-  `apps/desktop/test/composer-ime.test.mjs`); rendered desktop journey Draft
-  (run only in a capable environment when this surface changes)
+- **Status**: Partially automated. Unit coverage:
+  `packages/shared/src/composer-trigger.test.ts`,
+  `apps/desktop/test/composer-ime.test.mjs`. Rendered Electron coverage:
+  `node scripts/e2e-composer-ime-stack.mjs` mounts the production input, draft,
+  and completion components, drives Chromium composition through CDP, and
+  covers alias commit, ordinary Chinese text, cancellation, draft replacement,
+  completion acceptance, and lost-end recovery. Sending and a physical OS IME
+  candidate window remain manual checks.
 
 #### E2E-256: Empty-home project name switches among sidebar projects
 
@@ -17042,10 +17193,30 @@ plugin-form fixtures in an isolated temporary directory at runtime.
 | E2E-MCP-MARKET-NET-BOUNDARY | The URL guard rejects credentials, cloud metadata, unspecified, multicast and reserved forms (trailing dot included) even when the user typed them, and rejects loopback, private, special-use IPv4, v4-mapped, ULA, site-local and link-local forms for *third-party* hops — a redirect target or a catalog body; the same forms typed by the user into a source field are accepted, with plain `http` behind `networkPolicy.allowInsecureUserEndpoints`; direct/unknown routes pin the checked address by default, while a fully proxied route uses the session transport and an explicit `allowFakeIp` opt-in can cover transparent-router fake-IP sources without allowing real private answers | deterministic guard assertions; source-contract coverage for DNS pin, proxy route selection, explicit fake-IP scope and bounded responses |
 | E2E-MCP-MARKET-SEMANTICS | Registry records map to install templates preserving package versions, named/positional runtime/package arguments and required/optional env variables; a remote header variable is recognized in both the registry's `{name}` and the catalog's `${NAME}` spelling, prompts for declared editable values, preserves unbound brace literals, and resolves header-local defaults, fixed values, and optional flags without merging same-named inputs across headers (ADR registry-header-variable-spelling) | deterministic mapping assertions |
 | E2E-MCP-MARKET-INSTALL | Builtin catalog entry resolves through `resolveCatalogEntry` and installs via the host `mcp.upsert` RPC; record lands in `~/.agents/servers/` | real host binary, isolated temp HOME |
+| E2E-MCP-MARKET-explicit-project-owner | Select Project on the MCP page, open Market, and install a builtin entry; the upsert carries the selected project and the saved row appears in that project. All and Global retain global installation, and an entry in another level does not block installation | real React page and market in isolated Electron; IPC boundary fixture (`apps/desktop/test/mcp-market-owner-user-path.test.mjs`) |
 | E2E-MCP-MARKET-HEADER-SCOPE | Registry header-local `{token}` resolves only in its header; same-named URL path/query tokens remain literal through mapping, resolution, host upsert/list and persistence. URL templates retain only legacy `${NAME}` substitution. When `headerBindings` exists (even empty or partial), unbound tokens in every header stay literal and never consume another header's input or default | shared regressions plus real host binary with isolated temporary storage; remote entry disabled, no network call |
 | E2E-MCP-MARKET-partial-header-bindings-stay-literal | Resolve a catalog with only Authorization bound and another header using the same `{token}` / `${token}`; an undeclared `${UNBOUND}` in a third header also remains literal through host upsert/list and disk persistence | real host binary, disabled remote entry, synthetic input and isolated temporary storage; no network call |
 | E2E-MARKET-CATALOG-RETRY | In Skill Market and MCP Market, a failed query and then a partial source failure expose Retry; clicking it announces loading, refreshes the same query, and clears the failure when the source recovers | real React components in Electron with deterministic mocked market API responses; no live network |
 
+
+#### E2E-MCP-MARKET-explicit-project-owner: Market installation respects an explicit Project filter
+
+- **Preconditions**: MCP settings with a selected project; isolated Electron
+  profile and deterministic IPC responses, without live market or MCP calls.
+- **Steps**: Select Project, open Market, install a builtin entry, and reopen
+  Market. Repeat with All and Global, with no project under All, and with the
+  same entry already present in the other level. Select Project with no
+  project, then try an install directly through the panel's public interface.
+- **Expected**: Project sends `level: "project"` and the selected `projectPath`;
+  All and Global send `level: "global"` without a project owner. The installed
+  row appears on return, and reopening Market marks it installed only for the
+  target level. A record in another level never blocks installation. With no
+  project selected, the Project market action is disabled and the panel guard
+  reports the missing selection without writing.
+- **Specs linked**: `04-ux/06-settings-ia.md`, ADR 0112.
+- **Acceptance**: Quality.
+- **Milestone**: M6+.
+- **Status**: Automated (`node --test apps/desktop/test/mcp-market-owner-user-path.test.mjs`).
 
 #### E2E-SKILL-MARKET-NET-BOUNDARY: A user-supplied source reaches the LAN, third-party content does not
 
@@ -18078,6 +18249,26 @@ the latest destination. These assertions measure work counts, not device FPS.
 - **Acceptance:** C (chat and stream), F (persistence), Quality
 - **Status:** Unit-covered (`context-calibration.test.ts`, including the CJK and
   boundary cases); desktop E2E pending
+
+### E2E-CONTEXT-reported-occupancy-drives-compaction
+
+- **Preconditions:** A production sidecar, isolated Host fixture and localhost
+  Responses gateway. The gateway reports cached input separately from a total
+  that omits it; no real provider credentials are used.
+- **Steps:** Send a turn whose input, output and cache buckets exceed the
+  automatic threshold, then send another prompt. Repeat with ordinary
+  under-budget usage and with an incomplete bucket breakdown whose reported
+  total exceeds the threshold.
+- **Expected:** The first session summarizes and persists one checkpoint before
+  the next provider request, which includes the summary and new prompt. The
+  under-budget session continues without a checkpoint. A larger reported total
+  still triggers the guard when bucket details are missing; billing totals
+  remain unchanged.
+- **Automation:** `node scripts/e2e-context-usage-compaction.mjs` after building
+  shared and the production sidecar bundle. The real Agent-loop tests in
+  `context-usage-compaction.test.ts` also cover restored sessions and compaction
+  between a tool result and the next request.
+- **Specs:** `03-runtime/02-agent-runtime.md` §5.1.
 
 ### E2E-RUNTIME-unique-tool-call-ids-per-request
 

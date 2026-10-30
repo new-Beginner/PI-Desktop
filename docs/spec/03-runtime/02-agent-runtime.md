@@ -214,6 +214,13 @@ server or calculated value is capped at 30 seconds. The runtime captures the
 failed response status and headers from fetch because pi-ai's ordinary response
 callback only covers an established response.
 
+The main turn's idle watchdog measures each active provider attempt separately;
+retry backoff is outside that clock. Its default is 180 seconds with no provider
+events. `PI_DESKTOP_STREAM_IDLE_TIMEOUT_MS` keeps the 30-second positive minimum,
+and `0` disables the watchdog. A genuine stall aborts that attempt before recovery
+starts another one. It does not abort the retry loop's user-owned signal or spend
+an additional retry merely because a requested backoff elapsed.
+
 Non-429 transient failures share their own bounded response-recovery budget of ten
 retries after the initial attempt, for eleven provider attempts total. The budget
 is shared by request setup and stream delivery, so a fault that moves between
@@ -579,6 +586,13 @@ estimate and the calibrated message estimate. This is a hard floor before the
 first calibration sample and prevents counting overhead twice after an
 unanchored residual has learned it.
 
+For a usage anchor, the runtime takes the larger of the reported total and the
+request's input, output, cache-read and cache-write buckets. The inspector
+shows the bucket sum; reasoning is already included in output. This prevents a
+gateway's total that omits cached input from delaying compaction, while keeping
+the total-based guard when bucket details are incomplete. Billing totals remain
+unchanged.
+
 The calibration still measures the two errors separately — per-character bias
 as a scale-free ratio over the guessed tail, and an unanchored residual as a
 ratio only for observations taken at a comparable scale (0.5×–2× of the
@@ -653,7 +667,10 @@ own collector, which recognizes the lowercase spellings `read` / `write` /
 preparation (`withPiFileOpToolNames`): nothing stored changes, and every other
 tool name is left spelled the way we register it. Without that conversion a
 checkpoint's `readFiles` / `modifiedFiles` and the `<read-files>` section of a
-summary were always empty (D618).
+summary were always empty (D618). Codex-shaped compaction folds pi's retained
+tail into that same summary, and the runtime records file operations from the
+folded tail as well, so a file touched only inside the recent-token window
+still appears in the checkpoint lists and summary tags.
 
 A delegate (§5f) runs the same derivation against its own resolved model and
 compacts at its own turn boundaries, without a durable checkpoint chain of

@@ -471,6 +471,11 @@ export function SettingsPage() {
                 </SettingsRow>
               </SettingsCard>
 
+              <RadialMenuSettings
+                settings={settings}
+                saveSettings={saveSettings}
+              />
+
               <NetworkProxySection settings={settings} saveSettings={saveSettings} />
 
               <StorageSettingsSection />
@@ -604,11 +609,6 @@ export function SettingsPage() {
                   saveSettings={saveSettings}
                 />
               </SettingsCard>
-
-              <RadialMenuSettings
-                settings={settings}
-                saveSettings={saveSettings}
-              />
 
             </div>
           )}

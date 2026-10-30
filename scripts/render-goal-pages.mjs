@@ -13,7 +13,9 @@ import { repositoryRoot, resolveElectronBinary } from './e2e/boot.mjs';
 
 const root=repositoryRoot();
 assert(process.env.PI_SCRATCH_DIR && process.env.PI_DESKTOP_HOST_BIN);
-const output=resolve(root,'docs/artifacts/goal-inset');
+const artifactName=process.env.PI_GOAL_ARTIFACT_NAME??'goal-inset';
+assert(/^goal-[a-z0-9-]+$/.test(artifactName),'PI_GOAL_ARTIFACT_NAME must be a Goal artifact directory name');
+const output=resolve(root,'docs/artifacts',artifactName);
 await mkdir(output,{recursive:true});
 const sandbox=await mkdtemp(join(process.env.PI_SCRATCH_DIR,'goal-pages-'));
 const data=join(sandbox,'data'),home=join(sandbox,'home'),workspace=join(sandbox,'Demo-project');

@@ -291,7 +291,7 @@ test("sendPrompt returns the accepted session for Home history recording", async
   assert.ok(sendPrompt.length > 0, "sendPrompt implementation not found");
   assert.match(
     sendPrompt,
-    /await api\.prompt\(\{[\s\S]*?\}\);[\s\S]*?onAccepted\?\.\(startedIn\);\s*return true/,
+    /await submitUserPrompt\(api, current, \{[\s\S]*?\}\);[\s\S]*?onAccepted\?\.\(startedIn\);\s*return true/,
   );
   assert.match(
     sendPrompt,
@@ -317,7 +317,7 @@ test("the composer wires recall, its exits, and the record point (AC3)", async (
   assert.match(hook, /loadHistory: \(\) => loadComposerInputHistory\(referenceSessionId\)/);
   assert.match(hook, /draft\.draftRevision\(draftKey\) !== appliedRevisionRef\.current/);
   assert.match(hook, /useEffect\(\(\) => \{\s*exitBrowsing\(\);\s*\}, \[draftKey\]\);/);
-  assert.match(composer, /onInput=\{\(source, caret\) => \{\s*inputHistory\.exitBrowsing\(\);/);
+  assert.match(composer, /onInput=\{\(source, caret, composing\) => \{\s*inputHistory\.exitBrowsing\(\);/);
   assert.match(composer, /onHistoryNavigate=\{inputHistory\.navigate\}/);
   assert.match(composer, /recordHistory: inputHistory\.record/);
   // Both submit entry points — the composer's Enter and the toolbar's Send —
