@@ -1,5 +1,6 @@
 export const autonomousGoalEn = {
   title: "Autonomous goal", region: "Autonomous goal status", budgetRegion: "Goal budget",
+  startHint: "Send a goal to start. Selecting this mode alone does not run the agent.",
   turnLimit: "Turns", tokenLimit: "Tokens", unlimited: "Unlimited",
   status: { active: "Running goal", paused: "Paused goal", blocked: "Blocked goal", completed: "Completed goal", budget_exhausted: "Budget exhausted", cancelled: "Cancelled goal" },
   outcome: { met: "Reported met", unmet: "Reported unmet", unverified: "Unverified" },
@@ -27,6 +28,7 @@ export const autonomousGoalEn = {
 };
 export const autonomousGoalZhCN: typeof autonomousGoalEn = {
   title: "自主目标", region: "自主目标状态", budgetRegion: "Goal 预算",
+  startHint: "发送目标后开始执行；仅选择此模式不会启动智能体。",
   turnLimit: "轮次", tokenLimit: "Token", unlimited: "无限制",
   status: { active: "进行中的目标", paused: "已暂停的目标", blocked: "受阻的目标", completed: "已完成的目标", budget_exhausted: "预算已用尽", cancelled: "已取消的目标" },
   outcome: { met: "报告已满足", unmet: "报告未满足", unverified: "未验证" },
