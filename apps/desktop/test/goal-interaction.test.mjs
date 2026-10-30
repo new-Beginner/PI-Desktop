@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { resolveElectronBinary } from "../../../scripts/e2e/boot.mjs";
@@ -125,9 +126,13 @@ await i18n.use(initReactI18next).init({lng:'en',resources:{en:{translation:{auto
 useAppStore.setState({activeSessionId:null,sessions:[],settings:{defaultMode:'goal'}});render();window.goalReady=true;
 `;
 
-test("real Goal user path: blankable defaults → attached header → pause/edit → resume → remove → retained TaskDock", { timeout: 240000 }, async () => {
-  assert.ok(process.env.PI_SCRATCH_DIR, "PI_SCRATCH_DIR is required for isolated mutable state");
-  const output = await mkdtemp(path.join(process.env.PI_SCRATCH_DIR, "goal-ui-"));
+test("real Goal user path: blankable defaults → attached header → pause/edit → resume → remove → retained TaskDock", {
+  timeout: 240000,
+  skip: process.platform === "linux" && !process.env.DISPLAY && !process.env.PI_GOAL_TEST_CHROMIUM
+    ? "Electron requires a display; the Electron E2E job runs this test under Xvfb"
+    : false,
+}, async () => {
+  const output = await mkdtemp(path.join(process.env.PI_SCRATCH_DIR ?? tmpdir(), "goal-ui-"));
   await build({ stdin: { resolveDir: root, contents: fixture, loader: "tsx" }, bundle: true, platform: "browser", format: "esm", jsx: "automatic",
     outfile: path.join(output, "fixture.js"), nodePaths: [path.join(root, "apps/desktop/node_modules")], alias: { "@pi-desktop/shared": path.join(root, "packages/shared/src/index.ts") }, define: { "process.env.NODE_ENV": '"production"' } });
   let css = (await readFile(path.join(root, "apps/desktop/src/styles/tokens.css"), "utf8")).replace(/@theme(?:\s+inline)?\s*\{/g, ":root {");

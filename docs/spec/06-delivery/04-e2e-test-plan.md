@@ -19356,6 +19356,13 @@ their separate platform acceptance.
 
 ## E2E-GOAL-autonomous-lifecycle
 
+- **Browser interaction**: `node --test apps/desktop/test/goal-interaction.test.mjs`
+  covers budget editing, attached controls, pause/edit/resume/remove, retained
+  TaskDock state, and theme/width variants with isolated fixture data. It uses
+  PI_SCRATCH_DIR when supplied, otherwise a unique OS temporary directory.
+  Headless Linux unit runs skip this display-dependent test; the Electron E2E
+  job explicitly runs it under Xvfb with PI_SCRATCH_DIR set to runner.temp.
+
 - **Entry**: After building this candidate's host-core, shared, agent-host,
   host-runtime and agent-runtime outputs, run
   `PI_HOST_CORE_BINARY=<candidate-host-core> node scripts/e2e-autonomous-goal.mjs`.
