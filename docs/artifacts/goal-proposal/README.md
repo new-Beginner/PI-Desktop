@@ -69,7 +69,7 @@ GitHub renders the individual images below without running the HTML.
 - [Explicit budget/resume form](41-resume-zero.png), [completed Goal](15-completed.png),
   [current-model audit](16-completion-audit.png), [Agent comparison](21-agent-tasks.png),
   [Plan comparison](22-plan.png).
-- [Complete gallery](index.html), [measured geometry](screenshots.json),
+- [Complete gallery HTML source](https://github.com/new-Beginner/PI-Desktop/blob/088c21fe47dc37df46769a6ae02fce6d77937760/docs/artifacts/goal-proposal/index.html), [measured geometry](screenshots.json),
   [historical screenshot source hashes](source-manifest.json).
 
 The header is approximately 14 CSS px narrower on each side; Composer retains its
@@ -136,6 +136,6 @@ packages or machine-specific configs are part of this public evidence directory.
 ## Lifecycle diagram
 
 This previously rendered diagram explains lifecycle/admission boundaries, not an
-execution trace or a pixel-perfect depiction of the final UI. [Editable Mermaid](lifecycle.mmd).
+execution trace or a pixel-perfect depiction of the final UI. [Editable Mermaid source](https://github.com/new-Beginner/PI-Desktop/blob/088c21fe47dc37df46769a6ae02fce6d77937760/docs/artifacts/goal-proposal/lifecycle.mmd).
 
 ![Autonomous Goal lifecycle](lifecycle.png)
