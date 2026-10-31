@@ -19429,6 +19429,11 @@ Scenario: E2E-REVIEW-ROUNDS (local desktop, implemented)
   its diff remains readable after restart, its label is `.../basename`, and it
   grants no rollback writes. Rust RPC tests cover workspace/scratch/external
   Write and Edit, same-named paths, approval denial, failed Edit, and no Bash capture.
+  The visualization RPC Write → Read → Edit path starts with no visualization
+  directory and checks non-reversible review evidence for both mutations.
+  Ordinary operations keep that root lazy; denied redirected writes leave no
+  review snapshots. Run the complete visualization suite, not only review-named
+  tests, to cover the pre-existing cross-platform path contract.
   `review-file-open.test.mjs` covers missing/fuzzy paths, worktree/secondary-root
   locations, plugin unload, stale session/project results, and visible failures.
 - Additional acceptance: Rust RPC tests cover over 100 turns/changes, dedup,
