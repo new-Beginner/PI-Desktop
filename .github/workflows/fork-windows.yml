@@ -101,7 +101,7 @@ jobs:
       - name: Build workspace dependencies
         run: pnpm --filter '@pi-desktop/desktop^...' --fail-if-no-match build
       - name: Package Windows x64 without publishing
-        run: pnpm --filter @pi-desktop/desktop run dist:win -- --x64
+        run: pnpm --filter @pi-desktop/desktop run dist:win --x64
       - name: Verify Composer deep-file search on Windows
         run: node --test apps/desktop/test/composer-deep-file-search-user-path.test.mjs
       - name: Verify package version and record provenance
@@ -116,6 +116,7 @@ jobs:
           const dir = 'apps/desktop/release';
           const packaged = JSON.parse(asar.extractFile(path.join(dir, 'win-unpacked/resources/app.asar'), 'package.json'));
           assert.equal(packaged.version, version);
+          assert.equal(packaged.piDistribution, 'portable');
           assert(fs.existsSync(path.join(dir, 'win-unpacked/resources/bin/pi-desktop-host-core.exe')));
           const files = fs.readdirSync(dir).filter(name => /\.(exe|zip)$/.test(name)).sort();
           assert(files.some(name => name.startsWith('PI-Desktop-Setup-') && name.endsWith('.exe')));
