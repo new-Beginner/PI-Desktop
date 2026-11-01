@@ -241,7 +241,11 @@ window.reviewProbe = async () => {
   assert(Math.abs(box.top - stickyTop) <= 2, `File header sticks below toolbar: ${box.top}/${stickyTop}`);
   assert(document.elementFromPoint(box.left + 20, box.top + box.height / 2)?.closest(".review-history-file-header"), "Sticky header is not covered");
   await action("screenshot", "review-normal.png");
-  await action("resize", 420); await frame(); await frame();
+  const resized = new Promise<void>(resolve => window.addEventListener("resize", () => resolve(), { once: true }));
+  await action("resize", 420);
+  // Native resize delivery closes menus; wait for it before opening another.
+  await resized;
+  await frame();
   assert(scroller().getBoundingClientRect().width <= 420, "Narrow viewport applied");
   assert(headers()[0].getBoundingClientRect().right <= window.innerWidth + 1, "Narrow header fits");
   assert(Math.abs(headers()[0].getBoundingClientRect().top - scroller().getBoundingClientRect().top - parseFloat(getComputedStyle(scroller()).paddingTop)) <= 2, "Narrow sticky header is visible");
