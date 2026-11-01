@@ -141,6 +141,15 @@ function rows(html) {
   return [...html.matchAll(/class="turn-changes-row"[^>]*>[\s\S]*?<\/button>/g)];
 }
 
+test("a collapsed summary preserves abbreviated outside paths", async (t) => {
+  const ssr = await renderer(t);
+  const message = edit("D:/outside/private/report.txt", { reversible: false });
+  message.toolResult.details.root = "external";
+  const html = ssr.turn(turnMessages([message]));
+  assert.match(html, /class="[^\"]*turn-changes-head"[^>]*aria-expanded="false"/);
+  assert.match(html, /class="turn-changes-path" data-outside-path="true">\.\.\.\/report\.txt<\/span>/);
+});
+
 test("a finished turn with a few files gets relaxed rows below the reply, above entry extras", async (t) => {
   const ssr = await renderer(t);
   ssr.register("demo.a", { slot: "entryExtra", component: propsProbe("extra") });
