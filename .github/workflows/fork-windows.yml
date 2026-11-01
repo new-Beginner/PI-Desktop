@@ -55,8 +55,7 @@ jobs:
         run: |
           dbus-run-session -- xvfb-run --auto-servernum node --test --test-concurrency=1 \
             apps/desktop/test/goal-interaction.test.mjs \
-            apps/desktop/test/turn-changes-disclosure-user-path.test.mjs \
-            apps/desktop/test/composer-deep-file-search-user-path.test.mjs
+            apps/desktop/test/turn-changes-disclosure-user-path.test.mjs
       - name: Validate and build Rust Host
         run: |
           cargo fmt --all -- --check
@@ -86,6 +85,8 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v7
+      - name: Set isolated scratch directory
+        run: echo "PI_SCRATCH_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -94,9 +95,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @pi-desktop/desktop exec install-electron
       - name: Package Windows x64 without publishing
         run: pnpm --filter @pi-desktop/desktop run dist:win -- --x64
+      - name: Verify Composer deep-file search on Windows
+        run: node --test apps/desktop/test/composer-deep-file-search-user-path.test.mjs
       - name: Verify package version and record provenance
         run: |
           node --input-type=commonjs - <<'NODE'
