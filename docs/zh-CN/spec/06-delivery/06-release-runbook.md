@@ -21,6 +21,18 @@
 发布通道需要注入 Developer ID 身份（本地）或 `CSC_LINK` 证书（CI）；签名或公证验证
 失败时，发布会在上传前失败。
 
+### Fork Goal and Review preview
+
+The fork-only `fork-windows.yml` workflow builds `build/goal-review-refresh-6bbc`
+in `new-Beginner/PI-Desktop`. It validates the workspace, Rust Host, Goal controls,
+independent Goal execution and native Review before uploading unsigned Windows
+Setup, Portable EXE and ZIP packages. A distinct prerelease version is shared by
+all workspace metadata and filenames. `build-info.json` records both PR heads and
+the official main revision; `SHA256SUMS.txt` records package hashes. Download the
+Actions artifact within 14 days. This read-only lane needs no signing secrets and
+publishes no release or update feed. Back up existing data before preview use;
+portable packaging alone does not isolate application data.
+
 在 macOS 上，`pnpm dev` 创建并重用带有指纹的品牌 Electron 主机
 捆绑在 `.cache/electron-dev/` 下。它的包名称、可执行文件、标识符、
 和 ICNS 资源是仅用于开发的 PI-Desktop 值，因此 AppKit 显示

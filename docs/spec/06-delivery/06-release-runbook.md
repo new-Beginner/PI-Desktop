@@ -20,6 +20,18 @@ requires an injected Developer ID identity (local) or `CSC_LINK` certificate
 (CI), and fails before publication if signing or notarization verification does
 not pass.
 
+### Fork Goal and Review preview
+
+The fork-only `fork-windows.yml` workflow builds `build/goal-review-refresh-6bbc`
+in `new-Beginner/PI-Desktop`. It validates the workspace, Rust Host, Goal controls,
+independent Goal execution and native Review before uploading unsigned Windows
+Setup, Portable EXE and ZIP packages. A distinct prerelease version is shared by
+all workspace metadata and filenames. `build-info.json` records both PR heads and
+the official main revision; `SHA256SUMS.txt` records package hashes. Download the
+Actions artifact within 14 days. This read-only lane needs no signing secrets and
+publishes no release or update feed. Back up existing data before preview use;
+portable packaging alone does not isolate application data.
+
 On macOS, `pnpm dev` creates and reuses a fingerprinted branded Electron host
 bundle under `.cache/electron-dev/`. Its bundle name, executable, identifier,
 and ICNS resource are development-only PI-Desktop values, so AppKit shows

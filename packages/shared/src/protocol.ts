@@ -2,7 +2,7 @@ export const PROTOCOL_VERSION = 11 as const;
 export const SCHEMA_VERSION = 16 as const;
 export const APP_ID = "net.aiuo.pi-desktop";
 export const APP_NAME = "PI-Desktop";
-export const APP_VERSION = "0.21.0";
+export const APP_VERSION = "0.21.1-goalreview.2";
 
 export const APP_MENU_COMMANDS = [
   "newTask",
@@ -425,6 +425,11 @@ export const IPC = {
     composerCommands: "pi-desktop/composer/commands",
     workspaceDiff: "pi-desktop/workspace/diff",
     workspaceReviewRollback: "pi-desktop/workspace/review/rollback",
+    workspaceReviewTurns: "pi-desktop/workspace/review/turns",
+    workspaceReviewChanges: "pi-desktop/workspace/review/changes",
+    workspaceReviewContext: "pi-desktop/workspace/review/context",
+    workspaceReviewOpenFile: "pi-desktop/workspace/review/openFile",
+    workspaceReviewRollbackFile: "pi-desktop/workspace/review/rollbackFile",
     browserNavigate: "pi-desktop/browser/navigate",
     browserAction: "pi-desktop/browser/action",
     browserSetBounds: "pi-desktop/browser/setBounds",
