@@ -109,6 +109,7 @@ jobs:
       - name: Verify independent Goal in the built Windows Desktop
         env:
           PI_DESKTOP_HOST_BIN: ${{ github.workspace }}/target/release/pi-desktop-host-core.exe
+          PI_GOAL_ARTIFACT_NAME: goal-cloud-${{ github.run_id }}-${{ github.run_attempt }}
         run: node scripts/e2e-goal-independent-ui.mjs
       - name: Verify package version and record provenance
         run: |
