@@ -21,6 +21,19 @@
 发布通道需要注入 Developer ID 身份（本地）或 `CSC_LINK` 证书（CI）；签名或公证验证
 失败时，发布会在上传前失败。
 
+### Fork-only Goal and Review preview
+
+`.github/workflows/fork-windows.yml` builds the `build/goal-review-6bbcabb7`
+integration branch only in `new-Beginner/PI-Desktop`. It runs workspace checks,
+Rust tests and isolated Goal/Review user paths before Windows x64 packaging.
+The preview uses a distinct prerelease version across workspace metadata.
+Download the unsigned installer, portable executable and ZIP from the run's
+Actions artifact, together with `build-info.json` and `SHA256SUMS.txt`.
+Artifacts expire after 14 days. This lane has read-only repository permissions,
+needs no signing secrets and does not publish a GitHub Release or update feed.
+Back up application data before testing Goal database migrations; this is not
+an official release or a guarantee of downgrade compatibility.
+
 在 macOS 上，`pnpm dev` 创建并重用带有指纹的品牌 Electron 主机
 捆绑在 `.cache/electron-dev/` 下。它的包名称、可执行文件、标识符、
 和 ICNS 资源是仅用于开发的 PI-Desktop 值，因此 AppKit 显示

@@ -43,6 +43,19 @@ Windows/Linux package PNG, the
 transparent monochrome `build/tray-icon-mac.png` template, and the iconset/ICNS
 when macOS `iconutil` is available, without overwriting the canonical source.
 
+### Fork-only Goal and Review preview
+
+`.github/workflows/fork-windows.yml` builds the `build/goal-review-6bbcabb7`
+integration branch only in `new-Beginner/PI-Desktop`. It runs workspace checks,
+Rust tests and isolated Goal/Review user paths before Windows x64 packaging.
+The preview uses a distinct prerelease version across workspace metadata.
+Download the unsigned installer, portable executable and ZIP from the run's
+Actions artifact, together with `build-info.json` and `SHA256SUMS.txt`.
+Artifacts expire after 14 days. This lane has read-only repository permissions,
+needs no signing secrets and does not publish a GitHub Release or update feed.
+Back up application data before testing Goal database migrations; this is not
+an official release or a guarantee of downgrade compatibility.
+
 ## 2. Prerequisites (release lane)
 
 1. Apple Developer account with a **Developer ID Application** certificate in

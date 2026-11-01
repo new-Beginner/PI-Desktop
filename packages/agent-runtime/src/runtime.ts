@@ -9253,7 +9253,7 @@ Do not invent objections or turn speculative risks into blockers. Stop when the 
         timestamp: Date.now(),
       } : {
         role: "user",
-        content: promptContent(modelInput),
+        content,
         timestamp: Date.now(),
       };
       if (this.automaticCompactionNeeded([incomingUserMessage])) {
