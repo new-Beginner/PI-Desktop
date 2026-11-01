@@ -98,6 +98,8 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter @pi-desktop/desktop exec install-electron
+      - name: Build workspace dependencies
+        run: pnpm --filter '@pi-desktop/desktop^...' --fail-if-no-match build
       - name: Package Windows x64 without publishing
         run: pnpm --filter @pi-desktop/desktop run dist:win -- --x64
       - name: Verify Composer deep-file search on Windows
