@@ -75,6 +75,10 @@ describe("Plan protocol contracts", () => {
     expect(IPC_WHITELIST.has(IPC.invoke.appOpenFeedback)).toBe(true);
     expect(IPC.invoke.fsOpen).toBe("pi-desktop/fs/open");
     expect(IPC_WHITELIST.has(IPC.invoke.fsOpen)).toBe(true);
+    expect(IPC.invoke.workspaceReviewOpenFile).toBe("pi-desktop/workspace/review/openFile");
+    expect(IPC.invoke.workspaceReviewRollbackFile).toBe("pi-desktop/workspace/review/rollbackFile");
+    expect(IPC_WHITELIST.has(IPC.invoke.workspaceReviewOpenFile)).toBe(true);
+    expect(IPC_WHITELIST.has(IPC.invoke.workspaceReviewRollbackFile)).toBe(true);
     expect(IPC.invoke.statsGetTokenUsageHistory).toBe(
       "pi-desktop/stats/getTokenUsageHistory",
     );
@@ -119,10 +123,10 @@ describe("Plan protocol contracts", () => {
     expect(normalizeMode(undefined)).toBe("agent");
   });
 
-  it("pairs each contract mode with its proposal kind and back (D198)", () => {
+  it("keeps legacy Goal kinds while only Plan creates approval proposals", () => {
     expect(PROPOSAL_KINDS).toEqual(["plan", "goal"]);
     expect(proposalKindForMode("plan")).toBe("plan");
-    expect(proposalKindForMode("goal")).toBe("goal");
+    expect(proposalKindForMode("goal")).toBeNull();
     // Agent negotiates no contract, so it has no kind.
     expect(proposalKindForMode("agent")).toBeNull();
     expect(modeForProposalKind("goal")).toBe("goal");

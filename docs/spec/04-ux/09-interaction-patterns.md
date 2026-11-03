@@ -1144,7 +1144,18 @@ Agent calls a permission-gated tool (including Plan/Goal Bash under Ask or Accep
 - After resolution: focus returns to composer
 - Full spec: [03-permission-ux.md](03-permission-ux.md)
 
-## 5A. Plan and Goal workflow
+## 5A. Plan and legacy Goal approval workflow
+
+Goal references in this section describe the historical approval flow and existing
+persisted approvals. New `EnterGoalMode`/`SubmitGoal` calls cannot create goals.
+New Goal work starts from a user send without approval and uses the independent
+[Goal lifecycle](../03-runtime/10-session-state-machine.md#autonomous-goal-lifecycle)
+and [Goal card](08-component-spec.md#115-interactions). Only the user owner may
+start/resume. Selecting a mode alone never executes, pauses or resumes a Goal.
+Successful Goal submission returns input to Agent. Ordinary queued or immediate
+guidance preserves autonomous continuation; explicit new Goal input replaces
+unfinished work after the retired execution drains.
+The legacy approve/reject/read/execute contract below is preserved.
 
 1. The user selects Plan or Goal while the session is idle, or the same Agent
    calls `EnterPlanMode` / `EnterGoalMode`; the host persists/validates the
@@ -1603,6 +1614,21 @@ Project drag/drop follows these patterns:
 ### 9.1 Transcript scrolling
 
 - Default: auto-scroll to bottom on new content during stream while pinned
+- Loading earlier messages is one pane-local viewport transaction: capture the
+  visible message and its viewport offset before either mounting more cached
+  rows or requesting a page. Keep that anchor through the committed projection
+  and late row layout; total scroll-height growth is not an anchor because it
+  can include tail updates and offscreen intrinsic-size estimates.
+- While that transaction owns the viewport, discard wheel/trackpad, touch-scroll
+  and scrolling-key input addressed to the transcript. Do not queue input for
+  replay after loading. Nested scroll owners, editable fields, title activation
+  and Ctrl+wheel zoom retain their own input. The loading label keeps identical
+  layout space when hidden, and ordinary scrolling resumes after settlement.
+- Search/minimap navigation, return-to-latest, manual disclosure, a new turn,
+  pane hide and unmount retire the hold. A late page cannot reclaim that
+  navigation. A failed or empty page releases input and does not auto-retry at
+  the unchanged boundary; a new reader gesture or earlier-history action may
+  retry. Requests remain single-flight even after their viewport hold ends.
 - The first upward scroll **gesture** (wheel / trackpad / touch / scrollbar /
   keyboard) pauses auto-scroll and shows the "↓ Scroll to bottom" button;
   queued stream or resize follow work must not reverse that movement

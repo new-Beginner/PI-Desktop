@@ -2,7 +2,7 @@ export const PROTOCOL_VERSION = 11 as const;
 export const SCHEMA_VERSION = 16 as const;
 export const APP_ID = "net.aiuo.pi-desktop";
 export const APP_NAME = "PI-Desktop";
-export const APP_VERSION = "0.21.0";
+export const APP_VERSION = "0.21.1-goalreview.3";
 
 export const APP_MENU_COMMANDS = [
   "newTask",
@@ -238,6 +238,9 @@ export const IPC = {
     toolResolvePermission: "pi-desktop/tool/resolvePermission",
     todosGet: "pi-desktop/todos/get",
     askToolResolve: "pi-desktop/agent/askTool/resolve",
+    goalsGet: "pi-desktop/goals/get",
+    goalsStart: "pi-desktop/goals/start",
+    goalsControl: "pi-desktop/goals/control",
     plansPending: "pi-desktop/plans/pending",
     pendingInteractive: "pi-desktop/agent/pendingInteractive",
     plansResolve: "pi-desktop/plans/resolve",
@@ -424,6 +427,11 @@ export const IPC = {
     composerCommands: "pi-desktop/composer/commands",
     workspaceDiff: "pi-desktop/workspace/diff",
     workspaceReviewRollback: "pi-desktop/workspace/review/rollback",
+    workspaceReviewTurns: "pi-desktop/workspace/review/turns",
+    workspaceReviewChanges: "pi-desktop/workspace/review/changes",
+    workspaceReviewContext: "pi-desktop/workspace/review/context",
+    workspaceReviewOpenFile: "pi-desktop/workspace/review/openFile",
+    workspaceReviewRollbackFile: "pi-desktop/workspace/review/rollbackFile",
     browserNavigate: "pi-desktop/browser/navigate",
     browserAction: "pi-desktop/browser/action",
     browserSetBounds: "pi-desktop/browser/setBounds",
@@ -507,6 +515,7 @@ export const IPC = {
     remoteInteractions: "pi-desktop/remote/event/interactions",
     notificationActivated: "pi-desktop/notification/event/activated",
     notificationSound: "pi-desktop/notification/event/sound",
+    goalsChanged: "pi-desktop/goals/changed",
     plansChanged: "pi-desktop/plans/event/changed",
     todosChanged: "pi-desktop/todos/event/changed",
     providersOauth: "pi-desktop/providers/oauth/event",
