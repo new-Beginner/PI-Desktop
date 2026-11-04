@@ -46,6 +46,22 @@ jobs:
           sandbox=apps/desktop/node_modules/electron/dist/chrome-sandbox
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('/etc/xdg/openbox/rc.xml')
+          root = tree.getroot()
+          ET.register_namespace('', root.tag.split('}')[0].lstrip('{'))
+          removed = 0
+          for parent in root.iter():
+              for child in list(parent):
+                  if child.tag.rsplit('}', 1)[-1] == 'keybind' and child.get('key', '').lower() == 'a-space':
+                      parent.remove(child)
+                      removed += 1
+          assert removed > 0, 'Expected the Openbox Alt+Space window-menu binding'
+          tree.write(Path(os.environ['PI_SCRATCH_DIR']) / 'openbox-e2e.xml', encoding='utf-8', xml_declaration=True)
+          PY
       - name: Build workspace and check Desktop types
         run: |
           pnpm build:js
@@ -80,7 +96,7 @@ jobs:
           node scripts/e2e-goal-pause-steering.mjs
           node scripts/e2e-goal-removal-rounds.mjs
       - name: Verify built Desktop boot with an isolated profile
-        run: dbus-run-session -- xvfb-run --auto-servernum sh -c 'openbox >/dev/null 2>&1 & exec node scripts/e2e-electron-boot.mjs'
+        run: dbus-run-session -- xvfb-run --auto-servernum sh -c 'openbox --config-file "$PI_SCRATCH_DIR/openbox-e2e.xml" >/dev/null 2>&1 & exec node scripts/e2e-electron-boot.mjs'
       - name: Test native Review with isolated Host and Electron
         run: xvfb-run --auto-servernum node scripts/e2e-review-history.mjs
       - name: Test transcript rendering and real SessionPane history navigation
