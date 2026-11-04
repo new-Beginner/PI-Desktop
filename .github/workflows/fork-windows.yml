@@ -1,0 +1,179 @@
+name: Fork Windows build
+
+on:
+  push:
+    branches: [build/goal-review-prefetch-6bbc]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.repository == 'new-Beginner/PI-Desktop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify source ancestry including already-merged PRs
+        run: |
+          for source in 7dd5cbb47fc31632265ea16e9d6e4362e8aa5465 13f1e2f308178447105292d43e5a9636abccc6d9 066d723f4ad281d1138826c44d5bf2ceb1c3887f; do
+            git merge-base --is-ancestor "$source" HEAD
+          done
+      - name: Set isolated scratch directory
+        run: echo "PI_SCRATCH_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dependencies and Electron
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @pi-desktop/desktop exec install-electron
+      - name: Prepare isolated browser tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes openbox xauth xvfb
+          sandbox=apps/desktop/node_modules/electron/dist/chrome-sandbox
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+      - name: Build workspace and check Desktop types
+        run: |
+          pnpm build:js
+          pnpm --filter @pi-desktop/desktop typecheck
+      - name: Lint and validate documentation
+        run: |
+          pnpm lint
+          pnpm docs:check
+      - name: Test workspace with the upstream headless baseline
+        run: pnpm -r --if-present test
+      - name: Run isolated browser regressions sequentially
+        run: |
+          dbus-run-session -- xvfb-run --auto-servernum node --test --test-concurrency=1 \
+            apps/desktop/test/goal-interaction.test.mjs \
+            apps/desktop/test/turn-changes-disclosure-user-path.test.mjs
+      - name: Validate and build Rust Host
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -p host-core --all-targets --locked
+          cargo test -p host-core --locked
+          cargo build -p host-core --locked
+          echo "PI_DESKTOP_HOST_BIN=$GITHUB_WORKSPACE/target/debug/pi-desktop-host-core" >> "$GITHUB_ENV"
+          echo "PI_HOST_CORE_BINARY=$GITHUB_WORKSPACE/target/debug/pi-desktop-host-core" >> "$GITHUB_ENV"
+      - name: Test autonomous Goal with a loopback model fixture
+        run: |
+          for scenario in completion turn-budget token-budget finite-both unlimited audit-recovery settings-default pause; do
+            GOAL_E2E_SCENARIO="$scenario" node scripts/e2e-autonomous-goal.mjs
+          done
+          node scripts/e2e-goal-controls.mjs
+          node scripts/e2e-goal-live-controls.mjs
+          node scripts/e2e-goal-independent.mjs
+          node scripts/e2e-goal-pause-steering.mjs
+          node scripts/e2e-goal-removal-rounds.mjs
+      - name: Verify built Desktop boot with an isolated profile
+        run: dbus-run-session -- xvfb-run --auto-servernum node scripts/e2e-electron-boot.mjs
+      - name: Test native Review with isolated Host and Electron
+        run: xvfb-run --auto-servernum node scripts/e2e-review-history.mjs
+      - name: Test transcript rendering and real SessionPane history navigation
+        run: |
+          for script in e2e-transcript-render e2e-transcript-reading-position e2e-transcript-minimap-jump e2e-transcript-disclosure-anchor e2e-transcript-turn-completion; do
+            dbus-run-session -- xvfb-run --auto-servernum node "scripts/$script.mjs"
+          done
+
+  windows:
+    if: github.repository == 'new-Beginner/PI-Desktop'
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set isolated scratch directory
+        run: echo "PI_SCRATCH_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @pi-desktop/desktop exec install-electron
+      - name: Build workspace dependencies
+        run: pnpm --filter '@pi-desktop/desktop^...' --fail-if-no-match build
+      - name: Package Windows x64 without publishing
+        run: pnpm --filter @pi-desktop/desktop run dist:win --x64
+      - name: Verify packaged boot with an isolated profile
+        run: node scripts/e2e-electron-boot.mjs apps/desktop/release/win-unpacked/PI-Desktop.exe
+      - name: Verify Composer deep-file search on Windows
+        run: node --test apps/desktop/test/composer-deep-file-search-user-path.test.mjs
+      - name: Verify history loading and real latest navigation on Windows
+        run: node scripts/e2e-transcript-history-loading.mjs
+      - name: Verify independent Goal in the built Windows Desktop
+        env:
+          PI_DESKTOP_HOST_BIN: ${{ github.workspace }}/target/release/pi-desktop-host-core.exe
+          PI_GOAL_ARTIFACT_NAME: goal-cloud-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/e2e-goal-independent-ui.mjs
+      - name: Verify package version and record provenance
+        run: |
+          node --input-type=commonjs - <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const crypto = require('node:crypto');
+          const asar = require(require.resolve('@electron/asar', { paths: [path.resolve('apps/desktop')] }));
+          const version = require('./package.json').version;
+          const dir = 'apps/desktop/release';
+          const packaged = JSON.parse(asar.extractFile(path.join(dir, 'win-unpacked/resources/app.asar'), 'package.json'));
+          assert.equal(packaged.version, version);
+          assert.equal(packaged.piDistribution, 'portable');
+          assert(fs.existsSync(path.join(dir, 'win-unpacked/resources/bin/pi-desktop-host-core.exe')));
+          const files = fs.readdirSync(dir).filter(name => /\.(exe|zip)$/.test(name)).sort();
+          assert(files.some(name => name.startsWith('PI-Desktop-Setup-') && name.endsWith('.exe')));
+          assert(files.some(name => name.startsWith('PI-Desktop-Portable-') && name.endsWith('.exe')));
+          assert(files.some(name => name.endsWith('.zip')));
+          const checksums = files.map(name => {
+            assert(name.includes(version), `Missing version in ${name}`);
+            const sha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex');
+            return { name, sha256 };
+          });
+          const provenance = {
+            version, commit: process.env.GITHUB_SHA, repository: process.env.GITHUB_REPOSITORY,
+            pullRequests: [1999, 2017, 2080, 2099, 2105], alreadyMerged: [2080, 2099],
+            baseCandidate: '7dd5cbb47fc31632265ea16e9d6e4362e8aa5465',
+            previousPreview: '13f1e2f308178447105292d43e5a9636abccc6d9',
+            sources: { main: '7dd5cbb47fc31632265ea16e9d6e4362e8aa5465', pr1999: 'f3400601c05e55811fe0816e5db850ab7a2ae53a', pr2017: '05582704b09306df58e8ef6a7ed577a1fb5f1370', pr2080: '1d9591c827499da7a1adffb064011b1b9baad62c', pr2099: '30c3fc16605146bfecbda5aad5f055e333b96af4', pr2105: '066d723f4ad281d1138826c44d5bf2ceb1c3887f' },
+            mergeCommits: { pr2080: '6c24c49cb2902a7b97af63d31c298656d63836be', pr2099: '3934be79335551bf51184360e93d2415eec0828d' },
+            unsigned: true, files: checksums,
+          };
+          fs.writeFileSync(path.join(dir, 'SHA256SUMS.txt'), checksums.map(item => `${item.sha256}  ${item.name}`).join('\n') + '\n');
+          fs.writeFileSync(path.join(dir, 'build-info.json'), JSON.stringify(provenance, null, 2) + '\n');
+          console.log(JSON.stringify(provenance, null, 2));
+          NODE
+      - name: Upload unsigned Windows packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: PI-Desktop-Windows-goal-review-prefetch-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.zip
+            apps/desktop/release/SHA256SUMS.txt
+            apps/desktop/release/build-info.json

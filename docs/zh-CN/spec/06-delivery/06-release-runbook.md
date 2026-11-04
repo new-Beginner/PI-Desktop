@@ -21,6 +21,19 @@
 发布通道需要注入 Developer ID 身份（本地）或 `CSC_LINK` 证书（CI）；签名或公证验证
 失败时，发布会在上传前失败。
 
+### Fork preview build
+
+The fork-only `fork-windows.yml` lane builds `build/goal-review-prefetch-6bbc`
+in `new-Beginner/PI-Desktop`, using current official main as the authoritative
+base and adding PR #2105. PRs #2080 and #2099 remain included through main;
+unmerged #1999 and #2017 are retained from the validated `.4` preview. Workspace, Rust,
+Goal, Review, boot and real SessionPane prefetch/navigation checks precede unsigned Windows
+x64 Setup, Portable EXE and ZIP packaging. Version metadata and filenames advance
+together. `build-info.json` records source heads and merged PRs; `SHA256SUMS.txt`
+records package hashes. Actions artifacts expire after 14 days. This lane never
+publishes an official release or update feed. Back up data before preview use;
+portable packaging does not isolate application data.
+
 在 macOS 上，`pnpm dev` 创建并重用带有指纹的品牌 Electron 主机
 捆绑在 `.cache/electron-dev/` 下。它的包名称、可执行文件、标识符、
 和 ICNS 资源是仅用于开发的 PI-Desktop 值，因此 AppKit 显示

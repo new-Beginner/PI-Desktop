@@ -217,6 +217,7 @@ export type AppState = {
   restoreTranscriptReading: (sessionId: string, position: TranscriptReadingPosition, signal: AbortSignal) => Promise<boolean>;
   loadTranscriptPage: (sessionId: string, direction: "before" | "after") => Promise<void>;
   returnToLatestTranscript: (sessionId: string) => void;
+  prepareReturnToLatestTranscript: (sessionId: string) => () => void;
   selectSession: (
     id: string,
     opts?: { record?: boolean } & NavigationOptions,
@@ -229,6 +230,8 @@ export type AppState = {
   }) => Promise<void>;
   forkSession: (id: string) => Promise<void>;
   forkAssistantMessage: (messageId: string) => Promise<void>;
+  /** Capture input intent before owner removal; commit only after accepted deletion. */
+  prepareGoalRemoval: (sessionId: string) => () => void;
   configureActiveSession: (config: {
     mode: Mode;
     providerId?: string;

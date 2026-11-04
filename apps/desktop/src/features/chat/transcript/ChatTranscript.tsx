@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { PlanningState, RadialMenuAction, UiMessage } from "@pi-desktop/shared";
 import { proposalKindForMode } from "@pi-desktop/shared";
@@ -29,6 +29,7 @@ import { TranscriptHistory, TranscriptTail } from "./AssistantTurn";
 import { collectLiveDelegationEntries } from "../../../lib/live-delegation-entries";
 import { reuseReadonlyMap } from "../../../lib/assistant-turns";
 import { liveHistoryTurnId } from "../../../lib/turn-process";
+import { transcriptRuntimeIndicator } from "./runtime-status";
 import { useTranscriptScroll } from "./hooks/useTranscriptScroll";
 import { useTranscriptContinuation } from "../../../hooks/use-transcript-continuation";
 import type { TranscriptSearchTarget } from "../../../lib/transcript-reading";
@@ -78,6 +79,7 @@ type ChatTranscriptProps = {
   hasMoreAfter?: boolean;
   onLoadNewer?: () => Promise<void>;
   onReturnToLatest?: () => void;
+  onPrepareReturnToLatest?: () => (() => void);
   navigationLoading?: boolean;
 };
 
@@ -114,6 +116,7 @@ function TranscriptBody({
   hasMoreAfter = false,
   onLoadNewer,
   onReturnToLatest,
+  onPrepareReturnToLatest,
   navigationLoading = false,
 }: ChatTranscriptProps) {
   const { t } = useTranslation();
@@ -149,8 +152,8 @@ function TranscriptBody({
       sessionId && state.pendingPlans[sessionId]?.status === "pending",
     ),
   );
-  // Plan and Goal both project `planning`; the durable mode names which
-  // contract is being written, so the indicator can use that kind's copy.
+  // Plan and Goal both project `planning`, but only Plan presents the
+  // planning indicator; Goal runs use ordinary active-turn feedback.
   const planningKind = useAppStore(
     (state) =>
       proposalKindForMode(
@@ -182,6 +185,7 @@ function TranscriptBody({
     revealEarlierHistory,
     releaseFollow,
     jumpToLatest,
+    isLatestNavigationActive,
     disclosureAnchorNotifier,
   } = useTranscriptScroll({
     sessionId,
@@ -189,8 +193,8 @@ function TranscriptBody({
     compactions,
     hasMoreBefore,
     onLoadOlder,
-    // Rejoining live output is not a new turn: keep the reader's scroll owner.
-    isRunning: isRunning && !readingWindow,
+    // Execution state is independent of the historical reading range.
+    isRunning,
     pendingPermission,
     askPending,
     approvalPending,
@@ -198,15 +202,20 @@ function TranscriptBody({
     paneVisible,
     searchTarget,
     readingWindow,
+    navigationLoading,
     onRestoreReading,
   });
+  const returnToLatest = useCallback(() => {
+    const arrive = onPrepareReturnToLatest?.() ?? onReturnToLatest;
+    jumpToLatest(arrive);
+  }, [jumpToLatest, onPrepareReturnToLatest, onReturnToLatest]);
 
   const continuationCursor = useAppStore((state) =>
     sessionId ? state.transcriptViews[sessionId]?.messageEnd : undefined,
   );
   const automaticContinuation = readingWindow && !searchTarget;
   useTranscriptContinuation({
-    scrollRef, contentRef, messages, onLoadNewer,
+    scrollRef, contentRef, messages, onLoadNewer, isNavigationActive: isLatestNavigationActive,
     enabled: automaticContinuation && hasMoreAfter && paneVisible && !veilCovering,
     cursor: continuationCursor,
     loading: navigationLoading,
@@ -236,15 +245,15 @@ function TranscriptBody({
     !pendingPermission &&
     !askPending &&
     !approvalPending;
-  const showRunActivity = showStatus && hasSpecializedActivity;
-  const showWorking =
-    showStatus &&
-    planningState !== "planning" &&
-    !hasSpecializedActivity;
-  const showPlanning =
-    showStatus &&
-    planningState === "planning" &&
-    !hasSpecializedActivity;
+  const statusIndicator = transcriptRuntimeIndicator({
+    showStatus,
+    mode: sessionSummary?.mode,
+    planningState,
+    hasSpecializedActivity,
+  });
+  const showRunActivity = statusIndicator === "activity";
+  const showWorking = statusIndicator === "working";
+  const showPlanning = statusIndicator === "planning";
 
   // The tail status lane is part of the layout for the whole running turn: the
   // indicators below mount and clear with the turn's phase, and a lane that
@@ -351,10 +360,7 @@ function TranscriptBody({
             id,
             label,
             icon: <IconArrowDown size={16} />,
-            onSelect: () => {
-              onReturnToLatest?.();
-              jumpToLatest();
-            },
+            onSelect: returnToLatest,
           };
         case "open-browser":
           return {
@@ -416,10 +422,7 @@ function TranscriptBody({
         scrollRef,
         contentRef,
         actions: { copyText, selectText },
-        onReturnToLatest: () => {
-          onReturnToLatest?.();
-          jumpToLatest();
-        },
+        onReturnToLatest: returnToLatest,
       }),
     });
   };
@@ -557,10 +560,7 @@ function TranscriptBody({
           className="jump-latest-btn"
           ariaLabel={t("chat.scrollToBottom")}
           tooltip={t("chat.scrollToBottom")}
-          onClick={() => {
-            onReturnToLatest?.();
-            jumpToLatest();
-          }}
+          onClick={returnToLatest}
         >
           <IconArrowDown size={14} />
         </TooltipButton>
