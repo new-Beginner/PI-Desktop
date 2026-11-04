@@ -32,7 +32,9 @@ x64 Setup, Portable EXE and ZIP packaging. Version metadata and filenames advanc
 together. `build-info.json` records source heads and merged PRs; `SHA256SUMS.txt`
 records package hashes. Actions artifacts expire after 14 days. This lane never
 publishes an official release or update feed. Back up data before preview use;
-portable packaging does not isolate application data.
+portable packaging does not isolate application data. Boot probes require sidecar
+ready/configured and error-free startup evidence from stdout plus the isolated
+category log tree; packaged info logs are intentionally not console-mirrored.
 
 在 macOS 上，`pnpm dev` 创建并重用带有指纹的品牌 Electron 主机
 捆绑在 `.cache/electron-dev/` 下。它的包名称、可执行文件、标识符、

@@ -71,7 +71,9 @@ jobs:
           pnpm lint
           pnpm docs:check
       - name: Test workspace with the upstream headless baseline
-        run: pnpm -r --if-present test
+        run: |
+          node --test scripts/e2e/boot-diagnostics.test.mjs
+          pnpm -r --if-present test
       - name: Run isolated browser regressions sequentially
         run: |
           dbus-run-session -- xvfb-run --auto-servernum node --test --test-concurrency=1 \

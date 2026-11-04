@@ -11,6 +11,7 @@
  */
 import { spawn } from "node:child_process";
 import { rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { bootStartupEvidence } from "./e2e/boot-diagnostics.mjs";
 import { join, resolve } from "node:path";
 import {
   createTempDataDir,
@@ -137,9 +138,15 @@ child.on("close", (code) => {
     projectRemove.removed === false &&
     projectRemove.sessionsRemoved === 0;
   const ctrlRBlocked = probe?.ctrlRBlocked === true;
-  const sidecarReady = out.includes('[agent-sidecar] ready (host-proxy mode)') &&
-    out.includes('"event":"agent.sidecar.configured"');
-  const startupClean = !/"level":"(?:error|fatal)"|App threw an error|ERR_MODULE_NOT_FOUND|Cannot find module/.test(out);
+  let diagnostics;
+  try {
+    diagnostics = bootStartupEvidence(out, dataDir);
+  } catch (error) {
+    console.error("FAIL boot-probe diagnostic evidence —", String(error));
+    cleanup(1);
+    return;
+  }
+  const { sidecarReady, startupClean } = diagnostics;
   if (
     code === 0 &&
     sidecarReady && startupClean &&
@@ -172,8 +179,8 @@ child.on("close", (code) => {
     console.log("PASS built Desktop backend startup — sidecar ready/configured, no error/fatal startup diagnostics");
     cleanup(0);
   } else {
-    console.error("FAIL boot-probe —", JSON.stringify(probe));
-    console.error(out.slice(-2000));
+    console.error("FAIL boot-probe —", JSON.stringify({ ...probe, sidecarReady, startupClean }));
+    console.error(diagnostics.output.slice(-2000));
     cleanup(1);
   }
 });
