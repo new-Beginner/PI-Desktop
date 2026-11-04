@@ -1,3 +1,4 @@
+import type { GoalBudget, GoalChangedEvent, GoalControlRequest, GoalResult, ReviewContextLines, ReviewContextResult, ReviewTurnsPage, ReviewChangesPage } from "@pi-desktop/shared";
 import { projectPlanHistory } from "./plan-history";
 import { guardRemoteInvocation } from "./remote-ipc-safety";
 import { isRemoteSession, safeSessionSummary } from "./remote-session-safety";
@@ -1186,6 +1187,15 @@ export const api = {
     invoke<AgentPromptResponse>(IPC.invoke.agentSteer, req),
   prompt: (req: AgentPromptRequest) =>
     invoke<AgentPromptResponse>(IPC.invoke.agentPrompt, req),
+  getGoal: (sessionId: string) => invoke<GoalResult>(IPC.invoke.goalsGet, { sessionId }),
+  startGoal: (req: AgentPromptRequest & { budget?: GoalBudget }) =>
+    invoke<AgentPromptResponse>(IPC.invoke.goalsStart, req),
+  controlGoal: (req: GoalControlRequest) => invoke<GoalResult>(IPC.invoke.goalsControl, req),
+  onGoalChanged: (listener: (event: GoalChangedEvent) => void) => {
+    if (!window.piDesktop?.on) return () => undefined;
+    return window.piDesktop.on(IPC.event.goalsChanged, (payload) =>
+      listener(payload as GoalChangedEvent));
+  },
   speechStatus: () => invoke<SpeechStatus>(IPC.invoke.speechGetStatus),
   speechTranscribe: (req: SpeechTranscribeRequest) =>
     invoke<{ text: string }>(IPC.invoke.speechTranscribe, req),
@@ -1647,6 +1657,16 @@ export const api = {
   toggleDevTools: (open?: boolean) =>
     invoke<{ open: boolean }>(IPC.invoke.devtoolsToggle, { open }),
   workspaceDiff: (sessionId?: string) => invoke<WorkspaceDiff>(IPC.invoke.workspaceDiff, { ...(sessionId ? { sessionId } : {}) }),
+  workspaceReviewTurns: (input: { sessionId: string; before?: number; limit?: number }) =>
+    invoke<ReviewTurnsPage>(IPC.invoke.workspaceReviewTurns, input),
+  workspaceReviewChanges: (input: { sessionId: string; turnId?: string; snapshotId?: string; offset?: number; limit?: number }) =>
+    invoke<ReviewChangesPage>(IPC.invoke.workspaceReviewChanges, input),
+  workspaceReviewContext: (input: { sessionId: string; snapshotId: string; context: ReviewContextLines }) =>
+    invoke<ReviewContextResult>(IPC.invoke.workspaceReviewContext, input),
+  workspaceReviewOpenFile: (input: { sessionId: string; snapshotId: string; action: "external" | "folder" }) =>
+    invoke(IPC.invoke.workspaceReviewOpenFile, input),
+  workspaceReviewRollbackFile: (input: { sessionId: string; snapshotId: string }) =>
+    invoke<import("@pi-desktop/shared").ReviewFileRollbackResult>(IPC.invoke.workspaceReviewRollbackFile, input),
   workspaceReviewRollback: (input: {
     sessionId: string;
     snapshotId: string;

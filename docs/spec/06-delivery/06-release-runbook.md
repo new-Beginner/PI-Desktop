@@ -20,6 +20,18 @@ requires an injected Developer ID identity (local) or `CSC_LINK` certificate
 (CI), and fails before publication if signing or notarization verification does
 not pass.
 
+### Fork preview build
+
+The fork-only `fork-windows.yml` lane builds `build/goal-review-viewport-6bbc`
+in `new-Beginner/PI-Desktop`. PRs #2080 and #2099 are already in the pinned
+main; only #1999 and #2017 are additionally integrated. Workspace, Rust, Goal,
+Review and real SessionPane history-navigation checks precede unsigned Windows
+x64 Setup, Portable EXE and ZIP packaging. Version metadata and filenames advance
+together. `build-info.json` records source heads and merged PRs; `SHA256SUMS.txt`
+records package hashes. Actions artifacts expire after 14 days. This lane never
+publishes an official release or update feed. Back up data before preview use;
+portable packaging does not isolate application data.
+
 On macOS, `pnpm dev` creates and reuses a fingerprinted branded Electron host
 bundle under `.cache/electron-dev/`. Its bundle name, executable, identifier,
 and ICNS resource are development-only PI-Desktop values, so AppKit shows

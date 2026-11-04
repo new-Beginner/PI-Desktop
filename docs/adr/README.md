@@ -20,6 +20,7 @@ Each ADR includes:
 
 | ID | Title | Status |
 |---|---|---|
+| autonomous-goal-lifecycle | [Autonomous Goal lifecycle](autonomous-goal-lifecycle.md) | Implemented candidate |
 | plugin-projects-list | [Read-only durable project enumeration for plugins](plugin-projects-list.md) | Accepted |
 | append-only-review-state | [Append-only review state](append-only-review-state.md) | Implemented candidate |
 | lossless-tool-image-storage | [Lossless tool-image storage and bounded history mutations](lossless-tool-image-storage.md) | Implemented candidate |
@@ -395,6 +396,7 @@ Each ADR includes:
 | 0332 | [macOS keeps its translucent window surface with an opaque opt-out](0332-macos-opaque-window-surface.md) | Accepted (D665, amended by D666 and D667; supersedes the macOS vibrancy window backing from D348; issue #1064) |
 | gen-ui-inline-visualization | [Inline generative UI visualizations](gen-ui-inline-visualization.md) | Accepted (D671) |
 | 0337 | [Keep the request prefix stable across delegation settlements](0337-stable-prompt-prefix-across-delegation.md) | Accepted (supersedes ADR 0279 §9) |
+| 0341 | [Explicit actions on reviewed files](0341-explicit-reviewed-file-actions.md) | Accepted |
 | 0338 | [A user-supplied video owns the boot surface, served over a host-owned scheme](0338-user-supplied-startup-animation.md) | Accepted (D679) |
 | 0339 | [Chat file references open absolute files outside the managed roots](0339-chat-file-refs-open-absolute-files-outside-managed-roots.md) | Accepted (amends ADR 0262 §4) |
 
