@@ -137,8 +137,14 @@ globalThis.transcriptLiveTailProbe = async () => {
     const beforeTick = duration();
     await until(() => duration() !== beforeTick, "elapsed time keeps ticking without output deltas");
     set({ planningStates: { "live-tail": "planning" } });
-    assert(host.querySelector('[data-session-pane="live-tail"] [data-testid="planning-indicator"]'),
-      "restored live tail keeps its planning feedback");
+    const sessions = useAppStore.getState().sessions;
+    for (const mode of ["agent", "goal", "plan"] as const) {
+      set({ sessions: sessions.map(session => session.id === "live-tail" ? { ...session, mode } : session) });
+      const indicator = mode === "plan" ? "planning-indicator" : "working-indicator";
+      assert(host.querySelector(`[data-session-pane="live-tail"] [data-testid="${indicator}"]`),
+        `restored live tail keeps mode-specific feedback in ${mode} mode`);
+    }
+    set({ sessions });
     set({ planningStates: {}, pendingPermissions: { "live-tail": [{
       sessionId: "live-tail", requestId: "permission", toolCallId: "permission-call", toolName: "Bash",
       argsPreview: { command: "pwd" }, risk: "low", reason: "fixture",
