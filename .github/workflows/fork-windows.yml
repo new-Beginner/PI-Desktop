@@ -80,7 +80,7 @@ jobs:
           node scripts/e2e-goal-pause-steering.mjs
           node scripts/e2e-goal-removal-rounds.mjs
       - name: Verify built Desktop boot with an isolated profile
-        run: dbus-run-session -- xvfb-run --auto-servernum node scripts/e2e-electron-boot.mjs
+        run: dbus-run-session -- xvfb-run --auto-servernum sh -c 'openbox >/dev/null 2>&1 & exec node scripts/e2e-electron-boot.mjs'
       - name: Test native Review with isolated Host and Electron
         run: xvfb-run --auto-servernum node scripts/e2e-review-history.mjs
       - name: Test transcript rendering and real SessionPane history navigation
