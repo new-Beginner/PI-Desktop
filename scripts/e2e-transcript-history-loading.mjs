@@ -48,8 +48,13 @@ app.whenReady().then(async () => {
  };
   win.focus();
  try {
+  win.webContents.debugger.attach('1.3');
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  });
   await win.loadFile(require('node:path').join(__dirname, 'index.html'));
   await js('new Promise((resolve,reject)=>{const end=performance.now()+10000;const check=()=>{if(globalThis.historyLoadingFixture)resolve();else if(performance.now()>end)reject(new Error("fixture did not initialize"));else requestAnimationFrame(check)};check()})');
+  assert.equal(await js('matchMedia("(prefers-reduced-motion: reduce)").matches'), false, 'ordinary navigation scenarios require normal-motion emulation');
   console.log('HISTORY_MOTION ' + await js('JSON.stringify({ reduced: matchMedia("(prefers-reduced-motion: reduce)").matches })'));
   if (${manual}) return;
   const results = [];
@@ -111,7 +116,6 @@ app.whenReady().then(async () => {
   assert(Math.abs(navigation.distanceFromBottom) <= 2, 'late page stole explicit latest navigation');
   const realNavigation = await js('globalThis.transcriptHistoryNavigationProbe()');
   console.log('REAL_HISTORY_NAVIGATION_PROBE ' + JSON.stringify(realNavigation));
-  win.webContents.debugger.attach('1.3');
   try {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
       features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
