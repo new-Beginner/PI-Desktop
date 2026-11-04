@@ -37,6 +37,7 @@ app.setPath('userData', require('node:path').join(__dirname, 'profile'));
 app.disableHardwareAcceleration();
 app.on('window-all-closed', () => app.quit());
 app.whenReady().then(async () => {
+ console.log('HISTORY_BOOTSTRAP app-ready');
  const win = new BrowserWindow({ show: true, width: 1100, height: 720, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
  win.webContents.on('console-message', e => console.error(e.message));
  const js = expression => win.webContents.executeJavaScript(expression);
@@ -48,12 +49,15 @@ app.whenReady().then(async () => {
  };
   win.focus();
  try {
+  await win.loadFile(require('node:path').join(__dirname, 'index.html'));
+  await js('new Promise((resolve,reject)=>{const end=performance.now()+10000;const check=()=>{if(globalThis.historyLoadingFixture)resolve();else if(performance.now()>end)reject(new Error("fixture did not initialize"));else requestAnimationFrame(check)};check()})');
+  console.log('HISTORY_BOOTSTRAP document-ready');
   win.webContents.debugger.attach('1.3');
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
   });
-  await win.loadFile(require('node:path').join(__dirname, 'index.html'));
-  await js('new Promise((resolve,reject)=>{const end=performance.now()+10000;const check=()=>{if(globalThis.historyLoadingFixture)resolve();else if(performance.now()>end)reject(new Error("fixture did not initialize"));else requestAnimationFrame(check)};check()})');
+  await call('frames()');
+  console.log('HISTORY_BOOTSTRAP media-ready');
   assert.equal(await js('matchMedia("(prefers-reduced-motion: reduce)").matches'), false, 'ordinary navigation scenarios require normal-motion emulation');
   console.log('HISTORY_MOTION ' + await js('JSON.stringify({ reduced: matchMedia("(prefers-reduced-motion: reduce)").matches })'));
   if (${manual}) return;
