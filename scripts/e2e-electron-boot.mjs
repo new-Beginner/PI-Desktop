@@ -83,7 +83,18 @@ const pendingLines = new Map();
 
 const timeout = setTimeout(() => {
   console.error("FAIL boot-probe — timeout after 45s");
-  console.error(out.slice(-2000));
+  try {
+    const diagnostics = bootStartupEvidence(out, dataDir);
+    out = diagnostics.output;
+    console.error("BOOT_DIAGNOSTICS", JSON.stringify({
+      pid: child.pid, exitCode: child.exitCode, signalCode: child.signalCode,
+      sidecarReady: diagnostics.sidecarReady, startupClean: diagnostics.startupClean,
+      evidenceBytes: Buffer.byteLength(out),
+    }));
+    console.error(out.slice(-8000));
+  } catch (error) {
+    console.error("FAIL boot diagnostic collection —", String(error));
+  }
   child.kill("SIGKILL");
   cleanup(1);
 }, 45_000);
