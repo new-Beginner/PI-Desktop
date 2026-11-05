@@ -12,6 +12,7 @@
 import { spawn } from "node:child_process";
 import { rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { bootStartupEvidence } from "./e2e/boot-diagnostics.mjs";
 import {
   createTempDataDir,
   desktopPaths,
@@ -85,7 +86,18 @@ const pendingLines = new Map();
 
 const timeout = setTimeout(() => {
   console.error("FAIL boot-probe — timeout after 45s");
-  console.error(out.slice(-2000));
+  try {
+    const diagnostics = bootStartupEvidence(out, dataDir);
+    out = diagnostics.output;
+    console.error("BOOT_DIAGNOSTICS", JSON.stringify({
+      pid: child.pid, exitCode: child.exitCode, signalCode: child.signalCode,
+      sidecarReady: diagnostics.sidecarReady, startupClean: diagnostics.startupClean,
+      evidenceBytes: Buffer.byteLength(out),
+    }));
+    console.error(out.slice(-8000));
+  } catch (error) {
+    console.error("FAIL boot diagnostic collection —", String(error));
+  }
   child.kill("SIGKILL");
   cleanup(1);
 }, 45_000);
@@ -140,9 +152,15 @@ child.on("close", (code) => {
     projectRemove.removed === false &&
     projectRemove.sessionsRemoved === 0;
   const ctrlRBlocked = probe?.ctrlRBlocked === true;
-  const sidecarReady = out.includes('[agent-sidecar] ready (host-proxy mode)') &&
-    out.includes('"event":"agent.sidecar.configured"');
-  const startupClean = !/"level":"(?:error|fatal)"|App threw an error|ERR_MODULE_NOT_FOUND|Cannot find module/.test(out);
+  let diagnostics;
+  try {
+    diagnostics = bootStartupEvidence(out, dataDir);
+  } catch (error) {
+    console.error("FAIL boot-probe diagnostic evidence —", String(error));
+    cleanup(1);
+    return;
+  }
+  const { sidecarReady, startupClean } = diagnostics;
   if (
     code === 0 &&
     sidecarReady && startupClean &&
@@ -175,8 +193,8 @@ child.on("close", (code) => {
     console.log("PASS built Desktop backend startup — sidecar ready/configured, no error/fatal startup diagnostics");
     cleanup(0);
   } else {
-    console.error("FAIL boot-probe —", JSON.stringify(probe));
-    console.error(out.slice(-2000));
+    console.error("FAIL boot-probe —", JSON.stringify({ ...probe, sidecarReady, startupClean }));
+    console.error(diagnostics.output.slice(-2000));
     cleanup(1);
   }
 });

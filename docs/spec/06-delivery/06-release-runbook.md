@@ -662,3 +662,24 @@ Shell smoke on each native runner:
 - Rollback, staged rollout, and prerelease channel policy remain open release
   work. Existing unsigned macOS installs may need one manual signed DMG before
   in-app updates succeed.
+
+## Fork Goal, transcript and Review preview
+
+The unsigned `0.21.1-goalreview.7` Windows x64 preview pins official main
+`b4430db052e85c4535ad8c919f9e3f7933b015dc`, Goal PR #1999
+`6ae2428dd2f039bd30109a2a1817e4a33853d84b`, and transcript branch
+`11fa50d372adb845f37b32a5a8fdd2abb187532b`. Goal already contains that main;
+PR #2122 is already present through official merge
+`f56df5e27b51dfd9119bc4a670c8d0e377e727f6` and is not reapplied.
+
+The fork-only `fork-windows.yml` requires workspace builds/types/lint/tests,
+docs, Rust and isolated Goal/Review/transcript user paths before Windows
+packaging. Startup uses the release Host while retaining its original deadlines
+and 800-session responsiveness assertions. Windows packaged startup, native
+history input, full Desktop paging/quit and Goal controls remain gates.
+
+Artifacts contain NSIS, Portable EXE, ZIP, `build-info.json` and
+`SHA256SUMS.txt`, expire after 14 days, and publish no Release or update feed.
+The ZIP embeds distribution `zip`; final `win-unpacked` is `portable`.
+Portable packaging does not isolate user data. Back up data or explicitly
+configure an isolated data directory before evaluating this unsigned preview.
