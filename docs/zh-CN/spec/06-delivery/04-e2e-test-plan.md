@@ -10307,3 +10307,11 @@ Electron 一侧——工具自动签发、指示器、"停止"中止轮次、绘
 - 隔离真实 Host/sidecar 和本机模型：当前 Goal 轮运行时普通消息仅排队；本轮结束而目标未完成时先发送消息，其后再自动续跑目标。
 - 点击目标栏暂停立即持久化并显示 paused，不等待整轮结束。固定系统 steering 通知模型简短交接，正常一次回复结束；不配合夹具最多三次后续模型请求被运行时终止，不生成假用户消息、不自动恢复。
 - 实际构建界面验证排队浮条消失、模型仍被扣住时的暂停截图、无“本轮结束后暂停”文案、收尾后恢复和立即 Stop。暂停时收尾 claim 不授权原生工具；报告不能恢复/完成，重启不重放。
+
+### Structured Markdown state during transcript recycling
+
+- Run `node scripts/e2e-transcript-prose-state.mjs` with an isolated
+  `PI_SCRATCH_DIR` and an existing Electron binary.
+- Open the actual table preview and Mermaid source view, move their prose
+  shells outside the retention buffer, and return. Both states must survive.
+- Ordinary prose must still become a measured placeholder and remount on return.

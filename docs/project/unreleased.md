@@ -1,5 +1,9 @@
 # Unreleased changes
 
+- Preserve Mermaid source views, plugin fenced blocks and table previews while
+  scrolling offscreen in the scroll-stability preview. Stateful Markdown remains
+  mounted; ordinary prose keeps measured offscreen recycling.
+
 - Fixed the composer context ring staying at the pre-compaction figure after
   `/compact` or an automatic compaction until another turn ran (#2015). The
   ring now shows the compacted context's estimated size as soon as the

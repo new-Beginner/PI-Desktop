@@ -1652,7 +1652,9 @@ Project drag/drop follows these patterns:
   retention buffer and restore it inside a three-screen entry buffer, keeping
   measured-height message/prose shells. Measurements must match the current
   width; unknown geometry is rendered, not estimated. Streaming, focus,
-  selection, and search targets protect mounted content. Collapsed disclosure
+  selection, and search targets protect mounted content. Fenced Markdown and
+  tables also remain mounted: diagrams, plugin blocks and portalled previews
+  own layout or interactive state that must survive offscreen travel. Collapsed disclosure
   scopes release their prose without losing explicit disclosure choices.
   This bounds expensive offscreen prose, not retained data, row shells, or the
   size of a single intersecting answer; it never initiates a history request.

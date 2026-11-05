@@ -108,6 +108,8 @@ jobs:
             dbus-run-session -- xvfb-run --auto-servernum node "scripts/$script.mjs"
           done
           dbus-run-session -- xvfb-run --auto-servernum node scripts/e2e-transcript-history-loading.mjs --manual-smoke
+      - name: Test structured Markdown state preservation
+        run: dbus-run-session -- xvfb-run --auto-servernum node scripts/e2e-transcript-prose-state.mjs
       - name: Test full Desktop pagination and normal quit
         run: dbus-run-session -- xvfb-run --auto-servernum node scripts/manual-transcript-desktop.mjs --interaction-smoke
 
@@ -148,6 +150,8 @@ jobs:
         run: |
           node scripts/e2e-transcript-history-loading.mjs
           node scripts/e2e-transcript-history-loading.mjs --manual-smoke
+      - name: Verify structured Markdown state preservation
+        run: node scripts/e2e-transcript-prose-state.mjs
       - name: Verify full Desktop pagination and normal quit
         env:
           PI_DESKTOP_HOST_BIN: ${{ github.workspace }}/target/release/pi-desktop-host-core.exe

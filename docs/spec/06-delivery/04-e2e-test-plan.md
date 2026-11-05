@@ -20269,3 +20269,14 @@ Scenario: E2E-REVIEW-ROUNDS (local desktop, implemented)
   finish-round pause copy, then handoff, explicit Resume and immediate Stop.
 - Cover stale/duplicated pause, notification failure, model reports, closing native
   denial, Stop during closeout, late usage, restart/no replay, and live edits.
+
+### Structured Markdown state during transcript recycling
+
+- Run `node scripts/e2e-transcript-prose-state.mjs` with an isolated
+  `PI_SCRATCH_DIR` and a provisioned Electron binary.
+- Open a real Markdown table preview and the source view of a rendered Mermaid
+  diagram, move their prose shells beyond the offscreen retention buffer, then
+  return. The portalled preview and diagram source state must survive.
+- A separate ordinary prose shell must become a measured placeholder offscreen
+  and remount on return. Structured-content protection must not disable ordinary
+  prose recycling.
