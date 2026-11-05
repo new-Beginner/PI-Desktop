@@ -662,3 +662,26 @@ Shell smoke on each native runner:
 - Rollback, staged rollout, and prerelease channel policy remain open release
   work. Existing unsigned macOS installs may need one manual signed DMG before
   in-app updates succeed.
+
+## Fork scroll-stability preview
+
+The unsigned `0.21.1-goalreview.6` Windows x64 preview uses official main
+`983f8402606f0bd92ee6f4576f4cbbc652feb288` and the fork's
+`fix/transcript-scroll-stability` commit
+`9eb23cb2b7e38ab53f73d285157d0baa6fabe81b`. Main is an ancestor of that
+commit. PR #2017 is already integrated through official merge
+`e551953357b6dc633ba64184736e297126445c5a`; only unmerged Goal PR #1999
+(`f3400601c05e55811fe0816e5db850ab7a2ae53a`) needs a separate integration.
+
+The fork-only `fork-windows.yml` workflow validates the complete workspace,
+Rust Host, isolated Goal/Review paths, native history input, full Desktop
+pagination and normal quit before uploading NSIS, Portable EXE and ZIP packages.
+It does not publish a Release or an update feed. Artifacts expire after 14 days.
+`build-info.json` pins sources and package hashes; `SHA256SUMS.txt` covers all
+three packages. The ZIP's embedded distribution is `zip`, while the final
+`win-unpacked` directory represents the last-built `portable` target.
+
+Portable packaging does not imply an isolated application data directory.
+Use a backup or an explicitly isolated data directory when evaluating this
+preview. No test result establishes correctness of every possible provider,
+plugin or user-data configuration.

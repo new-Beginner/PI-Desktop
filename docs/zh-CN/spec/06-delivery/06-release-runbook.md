@@ -553,3 +553,23 @@ electron PI-Desktop-<version>-linux-<arch>.asar
   arm64。语音转写（`transcribe-cpp` 随附 `linux-arm64-cpu-vulkan` 包）以及
   其余所有功能在任何 arm64 Linux 设备上都可用。
 - 回滚、分阶段部署和预发布渠道政策仍是开放的发布工作。现有未签名 macOS 安装可能需要先手动安装一次已签名 DMG，之后应用内更新才能成功。
+
+## Fork scroll-stability preview
+
+The unsigned `0.21.1-goalreview.6` Windows x64 preview uses official main
+`983f8402606f0bd92ee6f4576f4cbbc652feb288` and fork scroll-stability commit
+`9eb23cb2b7e38ab53f73d285157d0baa6fabe81b`. Main and the official PR #2017
+merge `e551953357b6dc633ba64184736e297126445c5a` are ancestors of that source.
+Only unmerged Goal PR #1999 (`f3400601c05e55811fe0816e5db850ab7a2ae53a`)
+needs a separate integration.
+
+The fork-only `fork-windows.yml` validates workspace builds, types, lint, docs,
+Rust Host, Goal/Review, native history input, full Desktop pagination and normal
+quit before packaging NSIS, Portable EXE and ZIP. No Release or update feed is
+published. Artifacts expire after 14 days. `build-info.json` records sources and
+hashes, and `SHA256SUMS.txt` covers all three packages. The ZIP uses distribution
+`zip`; the last-built `win-unpacked` target uses `portable`.
+
+Portable packaging does not isolate application data. Back up existing data or
+use an explicitly isolated data directory. Validation cannot establish universal
+correctness across every provider, plugin or user-data configuration.
