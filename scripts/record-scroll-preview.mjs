@@ -22,10 +22,10 @@ const checksums = files.map(name => {
 const provenance = {
   version, commit: process.env.GITHUB_SHA, repository: process.env.GITHUB_REPOSITORY,
   pullRequests: [1999, 2122], alreadyMerged: [2122],
-  baseCandidate: "251528ea0301e815ce482b8bb5eb5b95c70a0d7c",
+  baseCandidate: "078bc3061953a6f50eef0b4151e80207313c5e97",
   sourceBranch: "fix/transcript-scroll-stability",
   sources: {
-    main: "251528ea0301e815ce482b8bb5eb5b95c70a0d7c",
+    main: "078bc3061953a6f50eef0b4151e80207313c5e97",
     scrollStability: "672b0abad6cf9d1c53b0b8ecb28e22be13da2f38",
     pr1999: "9b8dbd5f8aa938d157f6ee1a50a266bf8f342515",
     pr2122: "5595f433f54d894f7062e2e2bf9a8a5575ca480e",

@@ -666,9 +666,9 @@ Shell smoke on each native runner:
 ## Fork Goal, transcript and Review preview
 
 The unsigned `0.21.1-goalreview.8` Windows x64 preview pins official main
-`251528ea0301e815ce482b8bb5eb5b95c70a0d7c`, Goal PR #1999
+`078bc3061953a6f50eef0b4151e80207313c5e97`, Goal PR #1999
 `9b8dbd5f8aa938d157f6ee1a50a266bf8f342515`, and transcript branch
-`672b0abad6cf9d1c53b0b8ecb28e22be13da2f38`. Transcript already contains main;
+`672b0abad6cf9d1c53b0b8ecb28e22be13da2f38`. The candidate incorporates main;
 PR #2122 is already present through official merge
 `f56df5e27b51dfd9119bc4a670c8d0e377e727f6` and is not reapplied.
 

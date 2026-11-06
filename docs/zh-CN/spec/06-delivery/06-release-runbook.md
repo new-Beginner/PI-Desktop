@@ -557,9 +557,9 @@ electron PI-Desktop-<version>-linux-<arch>.asar
 ## Fork Goal, transcript and Review preview
 
 Unsigned Windows x64 version `0.21.1-goalreview.8` pins main
-`251528ea0301e815ce482b8bb5eb5b95c70a0d7c`, Goal PR #1999
+`078bc3061953a6f50eef0b4151e80207313c5e97`, Goal PR #1999
 `9b8dbd5f8aa938d157f6ee1a50a266bf8f342515`, and transcript branch
-`672b0abad6cf9d1c53b0b8ecb28e22be13da2f38`. Transcript contains main; PR #2122
+`672b0abad6cf9d1c53b0b8ecb28e22be13da2f38`. The candidate contains main; PR #2122
 is already present through merge `f56df5e27b51dfd9119bc4a670c8d0e377e727f6`.
 
 The fork workflow gates packaging on complete workspace, Rust and isolated
