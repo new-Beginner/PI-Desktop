@@ -196,7 +196,7 @@ function transcriptReader(initial, read) {
     visible: () => transcriptViewMessages(state.messages, state.transcriptViews[id]) };
 }
 
-test("shared transcript reader pages real remote history and returns to the live latest window", async () => {
+test("shared transcript reader retains paged remote history while returning to the live tail", async () => {
   const f = fixture();
   const original = f.client.request.bind(f.client);
   f.client.request = async (method, params) => {
@@ -219,10 +219,19 @@ test("shared transcript reader pages real remote history and returns to the live
   assert.equal(r.get().messages, live, "history reads do not replace live/model input");
   assert.deepEqual(f.calls.filter((call) => call.method === "session/history").map((call) => call.params.beforeItemId), ["m2", "m1"]);
   r.returnToLatestTranscript(id);
-  assert.equal(r.get().transcriptViews[id], undefined);
-  assert.equal(r.visible(), live);
+  assert.deepEqual(r.visible().map((message) => message.id), ["m0", "m1", "m2"]);
+  assert.equal(r.get().transcriptViews[id].focus, null);
+  assert.equal(r.get().transcriptViews[id].restored, false);
+  assert.equal(r.get().messages, live, "retained pages stay outside live/model input");
+  assert.equal(r.visible().at(-1), live.at(-1), "the visible tail uses the live message");
   await r.loadTranscriptPage(id, "before");
-  assert.equal(f.calls.filter((call) => call.method === "session/history").at(-1).params.beforeItemId, "m2");
+  assert.deepEqual(f.calls.filter((call) => call.method === "session/history").map((call) => call.params.beforeItemId), ["m2", "m1"], "returning to latest does not refetch exhausted history");
+  const update = { ...live[0], content: "Updated live tail" };
+  const next = { id: "m3", role: "assistant", content: "New live message" };
+  r.get().messages = [update, next];
+  assert.deepEqual(r.visible().map((message) => message.id), ["m0", "m1", "m2", "m3"]);
+  assert.equal(r.visible().at(-2), update);
+  assert.equal(r.visible().at(-1), next);
 });
 
 test("remote reading preserves opaque cursor identity without sorting or forward arithmetic", async () => {
