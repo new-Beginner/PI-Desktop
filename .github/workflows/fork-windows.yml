@@ -1,0 +1,177 @@
+name: Fork Windows build
+
+on:
+  push:
+    branches: [build/goal-scroll-refresh8-6bbc]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.repository == 'new-Beginner/PI-Desktop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify authoritative sources
+        run: |
+          for source in 251528ea0301e815ce482b8bb5eb5b95c70a0d7c 672b0abad6cf9d1c53b0b8ecb28e22be13da2f38 9b8dbd5f8aa938d157f6ee1a50a266bf8f342515 f56df5e27b51dfd9119bc4a670c8d0e377e727f6; do
+            git merge-base --is-ancestor "$source" HEAD
+          done
+      - name: Set isolated scratch directory
+        run: echo "PI_SCRATCH_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dependencies and Electron
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @pi-desktop/desktop exec install-electron
+      - name: Prepare isolated browser tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes openbox xauth xvfb
+          sandbox=apps/desktop/node_modules/electron/dist/chrome-sandbox
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('/etc/xdg/openbox/rc.xml')
+          root = tree.getroot()
+          ET.register_namespace('', root.tag.split('}')[0].lstrip('{'))
+          removed = 0
+          for parent in root.iter():
+              for child in list(parent):
+                  if child.tag.rsplit('}', 1)[-1] == 'keybind' and child.get('key', '').lower() == 'a-space':
+                      parent.remove(child)
+                      removed += 1
+          assert removed > 0, 'Expected the Openbox Alt+Space window-menu binding'
+          tree.write(Path(os.environ['PI_SCRATCH_DIR']) / 'openbox-e2e.xml', encoding='utf-8', xml_declaration=True)
+          PY
+      - name: Build workspace and check Desktop types
+        run: |
+          pnpm build:js
+          pnpm --filter @pi-desktop/desktop typecheck
+      - name: Lint and validate documentation
+        run: |
+          pnpm lint
+          pnpm docs:check
+          pnpm check:agent-policy
+      - name: Test workspace with the upstream headless baseline
+        run: |
+          node --test scripts/e2e/boot-diagnostics.test.mjs
+          pnpm -r --if-present test
+      - name: Run isolated browser regressions sequentially
+        run: |
+          dbus-run-session -- xvfb-run --auto-servernum node --test --test-concurrency=1 \
+            apps/desktop/test/goal-interaction.test.mjs \
+            apps/desktop/test/turn-changes-disclosure-user-path.test.mjs
+      - name: Validate and build Rust Host
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -p host-core --all-targets --locked
+          cargo test -p host-core --locked
+          cargo build --release -p host-core --locked
+          echo "PI_DESKTOP_HOST_BIN=$GITHUB_WORKSPACE/target/release/pi-desktop-host-core" >> "$GITHUB_ENV"
+          echo "PI_HOST_CORE_BINARY=$GITHUB_WORKSPACE/target/release/pi-desktop-host-core" >> "$GITHUB_ENV"
+      - name: Test autonomous Goal with a loopback model fixture
+        run: |
+          for scenario in completion turn-budget token-budget finite-both unlimited audit-recovery settings-default pause; do
+            GOAL_E2E_SCENARIO="$scenario" node scripts/e2e-autonomous-goal.mjs
+          done
+          node scripts/e2e-goal-controls.mjs
+          node scripts/e2e-goal-live-controls.mjs
+          node scripts/e2e-goal-independent.mjs
+          node scripts/e2e-goal-pause-steering.mjs
+          node scripts/e2e-goal-removal-rounds.mjs
+      - name: Verify built Desktop boot with an isolated profile
+        run: dbus-run-session -- xvfb-run --auto-servernum sh -c 'openbox --config-file "$PI_SCRATCH_DIR/openbox-e2e.xml" >/dev/null 2>&1 & exec node scripts/e2e-electron-boot.mjs'
+      - name: Test native Review with isolated Host and Electron
+        run: dbus-run-session -- xvfb-run --auto-servernum sh -c 'openbox --config-file "$PI_SCRATCH_DIR/openbox-e2e.xml" >/dev/null 2>&1 & exec node scripts/e2e-review-history.mjs'
+      - name: Test transcript rendering and history navigation
+        run: |
+          for script in e2e-transcript-render e2e-transcript-reading-position e2e-transcript-minimap-jump e2e-transcript-disclosure-anchor e2e-transcript-turn-completion e2e-transcript-history-loading; do
+            dbus-run-session -- xvfb-run --auto-servernum node "scripts/$script.mjs"
+          done
+          dbus-run-session -- xvfb-run --auto-servernum node scripts/e2e-transcript-history-loading.mjs --manual-smoke
+      - name: Test structured Markdown state preservation
+        run: dbus-run-session -- xvfb-run --auto-servernum node scripts/e2e-transcript-prose-state.mjs
+      - name: Test full Desktop pagination and normal quit
+        run: dbus-run-session -- xvfb-run --auto-servernum node scripts/manual-transcript-desktop.mjs --interaction-smoke
+
+  windows:
+    if: github.repository == 'new-Beginner/PI-Desktop'
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set isolated scratch directory
+        run: echo "PI_SCRATCH_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @pi-desktop/desktop exec install-electron
+      - name: Build workspace dependencies
+        run: pnpm --filter '@pi-desktop/desktop^...' --fail-if-no-match build
+      - name: Package Windows x64 without publishing
+        run: pnpm --filter @pi-desktop/desktop run dist:win --x64
+      - name: Verify packaged boot with an isolated profile
+        run: node scripts/e2e-electron-boot.mjs apps/desktop/release/win-unpacked/PI-Desktop.exe
+      - name: Verify Composer deep-file search on Windows
+        run: node --test apps/desktop/test/composer-deep-file-search-user-path.test.mjs
+      - name: Verify native history loading and latest navigation
+        run: |
+          node scripts/e2e-transcript-history-loading.mjs
+          node scripts/e2e-transcript-history-loading.mjs --manual-smoke
+      - name: Verify structured Markdown state preservation
+        run: node scripts/e2e-transcript-prose-state.mjs
+      - name: Verify full Desktop pagination and normal quit
+        env:
+          PI_DESKTOP_HOST_BIN: ${{ github.workspace }}/target/release/pi-desktop-host-core.exe
+        run: node scripts/manual-transcript-desktop.mjs --interaction-smoke
+      - name: Verify independent Goal in the built Windows Desktop
+        env:
+          PI_DESKTOP_HOST_BIN: ${{ github.workspace }}/target/release/pi-desktop-host-core.exe
+          PI_GOAL_ARTIFACT_NAME: goal-cloud-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/e2e-goal-independent-ui.mjs
+      - name: Verify package version and record provenance
+        run: node scripts/record-scroll-preview.mjs
+      - name: Upload unsigned Windows packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: PI-Desktop-Windows-goal-scroll-review2122-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.zip
+            apps/desktop/release/SHA256SUMS.txt
+            apps/desktop/release/build-info.json

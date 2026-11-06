@@ -553,3 +553,19 @@ electron PI-Desktop-<version>-linux-<arch>.asar
   arm64。语音转写（`transcribe-cpp` 随附 `linux-arm64-cpu-vulkan` 包）以及
   其余所有功能在任何 arm64 Linux 设备上都可用。
 - 回滚、分阶段部署和预发布渠道政策仍是开放的发布工作。现有未签名 macOS 安装可能需要先手动安装一次已签名 DMG，之后应用内更新才能成功。
+
+## Fork Goal, transcript and Review preview
+
+Unsigned Windows x64 version `0.21.1-goalreview.8` pins main
+`251528ea0301e815ce482b8bb5eb5b95c70a0d7c`, Goal PR #1999
+`9b8dbd5f8aa938d157f6ee1a50a266bf8f342515`, and transcript branch
+`672b0abad6cf9d1c53b0b8ecb28e22be13da2f38`. Transcript contains main; PR #2122
+is already present through merge `f56df5e27b51dfd9119bc4a670c8d0e377e727f6`.
+
+The fork workflow gates packaging on complete workspace, Rust and isolated
+Goal/Review/transcript checks. Startup uses the release Host and unchanged
+deadlines/responsiveness assertions. Artifacts include NSIS, Portable EXE, ZIP,
+source metadata and SHA-256 checksums, with 14-day retention and no Release/feed
+publication. ZIP distribution is `zip`; final unpacked target is `portable`.
+Portable packaging does not isolate data; use backups or an explicit isolated
+data directory when evaluating this unsigned preview.

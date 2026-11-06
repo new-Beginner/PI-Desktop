@@ -37,6 +37,13 @@ async function until(predicate: () => boolean | Promise<boolean>, reason: string
   await frame();
 }
 const action = (name: string, input?: unknown) => window.reviewFixture.action(name, input);
+async function resize(width: number) {
+  const delivered = new Promise<void>(resolve => window.addEventListener("resize", () => resolve(), { once: true }));
+  await action("resize", width);
+  await delivered;
+  // Context menus close on native resize; do not open the next one before paint.
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+}
 Object.defineProperty(navigator, "clipboard", { value: { writeText: (text: string) => action("copy", text) } });
 const select = (label: string) => document.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!;
 function assertDisclosureFollowsFilename(header: HTMLElement) {
@@ -276,7 +283,7 @@ window.reviewProbe = async () => {
   assert(Math.abs(box.top - stickyTop) <= 2, `File header sticks below toolbar: ${box.top}/${stickyTop}`);
   assert(document.elementFromPoint(box.left + 20, box.top + box.height / 2)?.closest(".review-history-file-header"), "Sticky header is not covered");
   await action("screenshot", "review-normal.png");
-  await action("resize", 420); await frame(); await frame();
+  await resize(420);
   assert(scroller().getBoundingClientRect().width <= 420, "Narrow viewport applied");
   headers().forEach(assertDisclosureFollowsFilename);
   assert(headers()[0].getBoundingClientRect().right <= window.innerWidth + 1, "Narrow header fits");
@@ -296,7 +303,7 @@ window.reviewProbe = async () => {
   await until(() => !document.querySelector('.context-menu'), 'Narrow settings menu closes');
   await action("screenshot", "review-narrow.png");
   checks.push("single-outer-scroll-normal-narrow-sticky-uncovered");
-  await action("resize", 920); scroller().scrollTop = 0; await frame();
+  await resize(920); scroller().scrollTop = 0; await frame();
   const copy = document.querySelector<HTMLButtonElement>(".review-change-copy")!; copy.click();
   await until(() => copy.classList.contains("copied"), "Copy action succeeds");
   assert((await action("clipboard") as string).includes("@@"), "Copied text is a diff, not line-number UI");

@@ -277,14 +277,28 @@ export async function transcriptLongHistoryProbe() {
     await settled();
     const readingTop = scroller.scrollTop;
     const readingHeight = scroller.scrollHeight;
+    const viewportTop = scroller.getBoundingClientRect().top;
+    const readingRow = [...scroller.querySelectorAll<HTMLElement>("[data-message-id]")].find(node => {
+      const box = node.getBoundingClientRect();
+      return box.height > 0 && box.bottom > viewportTop && box.top < viewportTop + scroller.clientHeight;
+    });
+    assert(readingRow?.dataset.messageId, "reader has an addressable visible message");
+    const readingId = readingRow.dataset.messageId;
+    const readingOffset = readingRow.getBoundingClientRect().top - viewportTop;
     await stream(largest, " reader-stays");
-    assert(Math.abs(scroller.scrollTop - readingTop) < 2,
-      `stream stole the reader's scroll position: ${JSON.stringify({
-        before: { top: readingTop, height: readingHeight },
-        after: { top: scroller.scrollTop, height: scroller.scrollHeight },
-        viewport: scroller.clientHeight,
-        reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-      })}`);
+    const afterRow = scroller.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(readingId)}"]`);
+    assert(afterRow, "stream unmounted the reader's visible message");
+    const afterOffset = afterRow.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    const readingSample = {
+      messageId: readingId,
+      before: { top: readingTop, height: readingHeight, offset: readingOffset },
+      after: { top: scroller.scrollTop, height: scroller.scrollHeight, offset: afterOffset },
+      viewport: scroller.clientHeight,
+      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    };
+    console.log("LONG_HISTORY_READING_ANCHOR " + JSON.stringify(readingSample));
+    assert(Math.abs(afterOffset - readingOffset) < 2,
+      `stream stole the reader's scroll position: ${JSON.stringify(readingSample)}`);
 
     // Terminal re-key must replace exactly the provisional row, survive cache
     // reselection and expose fresh copy text through the real turn toolbar.
@@ -400,7 +414,7 @@ export async function transcriptLongHistoryProbe() {
     assert(host.querySelector('[data-message-id="appended-long-history-tool-2"]'), "switch lost appended tool");
     assert(reads.every((read) => read.limit === 100), "ordinary selection requested unbounded Host history");
     assert(errors.length === 0, `render errors: ${errors.map(String)}`);
-    return { ok: true, workCounts, hostPageSize: 100, simultaneousRunningSessions: 3,
+    return { ok: true, workCounts, readingSample, hostPageSize: 100, simultaneousRunningSessions: 3,
       diagnostics: { eventToSettledDomMs: latencies, longTasksMs: observer ? longTasks : null,
         heapBefore, heapAfter: heap() } };
   } finally {

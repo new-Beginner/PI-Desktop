@@ -43,7 +43,16 @@ ipcMain.handle('fixture:invoke',async(_event,channel,input)=>{if(channel===${JSO
 ipcMain.handle('fixture:action',async(_event,name,input)=>{switch(name){
 case 'seed':seed=await seedReviewHistory(host,__dirname);return {session:seed.session,other:seed.other,round:seed.round,latest:seed.latest,firstSnapshot:seed.firstSnapshot,late:seed.lateMessage};
 case 'currentSeed':return {session:seed.session,firstSnapshot:seed.firstSnapshot};
-case 'hoverReviewFile': {win.showInactive();const rect=await win.webContents.executeJavaScript("document.querySelector("+JSON.stringify(input?'.review-history-file-header':'.fixture-label')+").getBoundingClientRect().toJSON()");win.webContents.debugger.attach('1.3');try{await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:rect.x+rect.width/2,y:rect.y+rect.height/2});}finally{win.webContents.debugger.detach();}return;}
+case 'hoverReviewFile': {
+  win.show();win.focus();
+  const point=await win.webContents.executeJavaScript("(()=>{const target=document.querySelector("+JSON.stringify(input?'.review-history-file-header':'.fixture-label')+");target.scrollIntoView({block:'nearest'});const r=target.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:target.contains(document.elementFromPoint(x,y))};})()");
+  if(!point.hit)throw new Error('Review hover target is covered or outside the viewport');
+  // Showing and scrolling are asynchronous native operations: wait for their frame.
+  await win.webContents.capturePage();
+  win.webContents.debugger.attach('1.3');
+  try{await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:point.x,y:point.y});}
+  finally{win.webContents.debugger.detach();}return;
+}
 case 'late':return seed.appendLate();
 case 'runningStart':runningTurn=await seed.startRunning();return;
 case 'runningWrite':return seed.writeRunning(runningTurn);
