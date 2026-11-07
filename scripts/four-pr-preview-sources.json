@@ -1,9 +1,10 @@
 {
   "version": "0.21.1-goalreview.9",
-  "baseCandidate": "c46e26eb7d9774e12c3d4945d7a92231df7b629a",
+  "baseCandidate": "0eb607643d3199c6335eae236399623e07b57e3c",
   "pullRequests": [2140, 2141, 2169, 2170],
+  "alreadyMerged": [2169],
   "sources": {
-    "main": "c46e26eb7d9774e12c3d4945d7a92231df7b629a",
+    "main": "0eb607643d3199c6335eae236399623e07b57e3c",
     "pr2140": "253af7c5fddb1187e9ca97ad0930cfe2a8e5428e",
     "pr2141": "c150b817002df2a28d88d81043a8cf7fbcced8cc",
     "pr2169": "52c7a8d6504e0ee965f07f19a828532d5269f045",
