@@ -10,6 +10,7 @@ const profile = path.join(root, "Temp", "boot-launch-fixture");
 const appDir = path.join(root, "apps", "desktop");
 const electron = path.join(profile, "electron.exe");
 const source = await readFile(path.join(root, "scripts/e2e-electron-boot.mjs"), "utf8");
+const packageMetadata = await readFile(path.join(root, "package.json"), "utf8");
 const result = await build({
   stdin: { contents: source.replace(/^#!.*\r?\n/, ""), resolveDir: path.join(root, "scripts"), sourcefile: "e2e-electron-boot.mjs" },
   bundle: true, write: false, platform: "node", format: "cjs",
@@ -33,7 +34,9 @@ for (const packaged of [false, true]) {
     const require = (name) => {
       if (name === "node:path") return path;
       if (name === "node:fs") return {
-        existsSync: () => true, readFileSync: () => "preload bridge", mkdirSync() {}, rmSync() {}, writeFileSync() {},
+        existsSync: () => true,
+        readFileSync: filename => filename === path.join(root, "package.json") ? packageMetadata : "preload bridge",
+        mkdirSync() {}, rmSync() {}, writeFileSync() {},
       };
       if (name === "node:child_process") return { spawn: (executable, args, options) => {
         captured = { executable, args, options };
