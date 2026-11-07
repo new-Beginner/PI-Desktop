@@ -21,6 +21,7 @@ import {
 
 import { bootStartupEvidence, readBootDiagnostics } from "./e2e/boot-diagnostics.mjs";
 const root = repositoryRoot();
+const expectedVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 const packagedExecutable = process.argv[2];
 const { appDir } = desktopPaths(root);
 const executable = packagedExecutable
@@ -148,6 +149,7 @@ child.on("close", (code) => {
     sidecarReady && startupClean &&
     probe?.ok &&
     probe.appName === "PI-Desktop" &&
+    probe.version === expectedVersion &&
     probe.platform === process.platform &&
     (process.platform === "darwin" || probe.maximized === true) &&
     menuContractOk &&
