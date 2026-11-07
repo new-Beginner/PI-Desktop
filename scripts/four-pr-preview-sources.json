@@ -1,0 +1,12 @@
+{
+  "version": "0.21.1-goalreview.9",
+  "baseCandidate": "c46e26eb7d9774e12c3d4945d7a92231df7b629a",
+  "pullRequests": [2140, 2141, 2169, 2170],
+  "sources": {
+    "main": "c46e26eb7d9774e12c3d4945d7a92231df7b629a",
+    "pr2140": "253af7c5fddb1187e9ca97ad0930cfe2a8e5428e",
+    "pr2141": "c150b817002df2a28d88d81043a8cf7fbcced8cc",
+    "pr2169": "52c7a8d6504e0ee965f07f19a828532d5269f045",
+    "pr2170": "1fc3736a20c644bb2337b726dfe24c6cc935e99e"
+  }
+}

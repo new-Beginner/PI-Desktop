@@ -1,6 +1,7 @@
 import { en, type EnglishCatalog } from "../en/index.js";
 
 export const de = {
+  autonomousGoal: en.autonomousGoal,
   "worktree": {
     "menu": { "group": "Git" },
     "newIsolatedSession": "Neue isolierte Sitzung",
@@ -2246,6 +2247,8 @@ sklm: {
       reviewScope: "Review scope",
       reviewSettings: "Review settings",
       wordWrap: "Word wrap",
+      expandAll: "Alle ausklappen",
+      collapseAll: "Alle einklappen",
       contextDisplay: "Context lines",
       fileActions: "Dateiaktionen",
       openInternal: "Intern öffnen",

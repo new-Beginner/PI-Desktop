@@ -1,6 +1,7 @@
 import { en, type EnglishCatalog } from "../en/index.js";
 
 export const ko = {
+  autonomousGoal: en.autonomousGoal,
   worktree: {
     menu: { group: "Git" },
     newIsolatedSession: "새 격리 세션",
@@ -2262,6 +2263,8 @@ sklm: {
       reviewScope: "Review scope",
       reviewSettings: "Review settings",
       wordWrap: "Word wrap",
+      expandAll: "모두 펼치기",
+      collapseAll: "모두 접기",
       contextDisplay: "Context lines",
       fileActions: "파일 작업",
       openInternal: "내부에서 열기",

@@ -1,6 +1,7 @@
 import { en, type EnglishCatalog } from "../en/index.js";
 
 export const tr = {
+  autonomousGoal: en.autonomousGoal,
   worktree: {
     menu: { group: "Git" },
     newIsolatedSession: "Yeni yalıtılmış oturum",
@@ -2256,6 +2257,8 @@ sklm: {
       reviewScope: "Review scope",
       reviewSettings: "Review settings",
       wordWrap: "Word wrap",
+      expandAll: "Tümünü genişlet",
+      collapseAll: "Tümünü daralt",
       contextDisplay: "Context lines",
       fileActions: "Dosya işlemleri",
       openInternal: "Dahili aç",

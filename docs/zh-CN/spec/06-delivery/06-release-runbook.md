@@ -553,3 +553,21 @@ electron PI-Desktop-<version>-linux-<arch>.asar
   arm64。语音转写（`transcribe-cpp` 随附 `linux-arm64-cpu-vulkan` 包）以及
   其余所有功能在任何 arm64 Linux 设备上都可用。
 - 回滚、分阶段部署和预发布渠道政策仍是开放的发布工作。现有未签名 macOS 安装可能需要先手动安装一次已签名 DMG，之后应用内更新才能成功。
+
+## Four-PR fork preview
+
+Unsigned Windows x64 preview `0.21.1-goalreview.9` integrates PRs #2140,
+#2141, #2169 and #2170. `scripts/four-pr-preview-sources.json` pins the exact
+main and PR commits. Workflow and package checks require all source ancestors.
+
+Packaging follows complete workspace/Rust checks and isolated permission,
+Goal, Review and transcript journeys. Windows repeats packaged startup,
+native history, full Desktop pagination/quit and Goal UI checks. Startup
+checks isolated category logs plus stdout without changing deadlines or
+responsiveness limits. Latest arrival clears historical ownership without
+requiring deletion of connected cached pages.
+
+Artifacts contain Setup EXE, Portable EXE, ZIP, source metadata and SHA-256
+checksums, retained for 14 days without publishing a Release or update feed.
+ZIP distribution is `zip`; final unpacked output is `portable`. Portable
+packaging does not isolate data; use backups or an explicit isolated data path.

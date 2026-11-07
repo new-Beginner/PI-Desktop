@@ -1,6 +1,7 @@
 import { en, type EnglishCatalog } from "../en/index.js";
 
 export const zhTW = {
+  autonomousGoal: en.autonomousGoal,
   worktree: {
     menu: { group: "Git" },
     newIsolatedSession: "新增隔離工作階段",
@@ -2241,6 +2242,8 @@ sklm: {
       reviewScope: "审阅范围",
       reviewSettings: "审阅设置",
       wordWrap: "自动换行",
+      expandAll: "全部展開",
+      collapseAll: "全部收合",
       contextDisplay: "上下文显示",
       fileActions: "檔案操作",
       openInternal: "內部開啟",

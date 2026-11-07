@@ -662,3 +662,25 @@ Shell smoke on each native runner:
 - Rollback, staged rollout, and prerelease channel policy remain open release
   work. Existing unsigned macOS installs may need one manual signed DMG before
   in-app updates succeed.
+
+## Four-PR fork preview
+
+The unsigned Windows x64 preview `0.21.1-goalreview.9` integrates PRs #2140,
+#2141, #2169 and #2170 on current official main. Exact source commits are
+recorded in `scripts/four-pr-preview-sources.json`; both workflow source checks
+and the package recorder require every source to be an ancestor of the build.
+
+The fork-only `fork-windows.yml` gates packaging on the complete workspace
+build/types/lint/tests, documentation, Rust checks and isolated permission,
+Goal, Review and transcript user paths. Windows packages repeat startup,
+native history, full Desktop pagination/quit and Goal controls checks.
+Startup evidence reads only this isolated profile's category logs and stdout;
+the original deadlines and responsiveness assertions are unchanged. Latest
+arrival is checked by cleared historical focus and actual bottom geometry,
+not deletion of tail-connected cached pages.
+
+Artifacts contain Setup EXE, Portable EXE, ZIP, `SHA256SUMS.txt` and
+`build-info.json`, with 14-day retention and no Release or update-feed publication.
+The recorder verifies package versions and all four sources. ZIP distribution
+is `zip`; final unpacked output is `portable`. Portable packaging does not
+isolate user data; use a backup or an explicitly isolated data directory.

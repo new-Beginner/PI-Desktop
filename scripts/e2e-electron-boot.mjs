@@ -10,7 +10,7 @@
  * (target/debug or target/release, or PI_DESKTOP_HOST_BIN) are required.
  */
 import { spawn } from "node:child_process";
-import { rmSync, existsSync, readFileSync } from "node:fs";
+import { rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   createTempDataDir,
@@ -19,6 +19,7 @@ import {
   resolveElectronBinary,
 } from "./e2e/boot.mjs";
 
+import { bootStartupEvidence, readBootDiagnostics } from "./e2e/boot-diagnostics.mjs";
 const root = repositoryRoot();
 const packagedExecutable = process.argv[2];
 const { appDir } = desktopPaths(root);
@@ -53,12 +54,23 @@ for (const preloadPath of packagedExecutable ? [] : [
 }
 
 const dataDir = createTempDataDir("pi-desktop-boot-");
+const home = join(dataDir, "isolated-home");
+for (const dir of [home, join(home, "AppData"), join(home, "LocalAppData"), join(dataDir, "chromium")]) mkdirSync(dir, { recursive: true });
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-const child = spawn(executable, packagedExecutable ? [] : ["."], {
+const child = spawn(executable, [
+  ...(packagedExecutable ? [] : ["."]),
+  `--user-data-dir=${join(dataDir, "chromium")}`,
+], {
   cwd: appDir,
   env: {
     ...env,
+    HOME: home,
+    USERPROFILE: home,
+    APPDATA: join(home, "AppData"),
+    LOCALAPPDATA: join(home, "LocalAppData"),
+    PI_DESKTOP_AGENTS_DIR: join(home, "agents"),
+    PI_CODING_AGENT_DIR: join(home, "agent"),
     PI_DESKTOP_DATA_DIR: dataDir,
     PI_DESKTOP_BOOT_PROBE: "1",
     PI_DESKTOP_START_MAXIMIZED: process.platform === "darwin" ? "0" : "1",
@@ -74,13 +86,14 @@ const pendingLines = new Map();
 
 const timeout = setTimeout(() => {
   console.error("FAIL boot-probe — timeout after 45s");
-  console.error(out.slice(-2000));
+  console.error(`${out}\n${readBootDiagnostics(dataDir)}`.slice(-4000));
   child.kill("SIGKILL");
   cleanup(1);
 }, 45_000);
 
 function cleanup(code) {
   clearTimeout(timeout);
+  if (process.env.PI_BOOT_PROBE_LOG) writeFileSync(process.env.PI_BOOT_PROBE_LOG, `${out}\n${readBootDiagnostics(dataDir)}`);
   try {
     rmSync(dataDir, { recursive: true, force: true });
   } catch {}
@@ -128,8 +141,11 @@ child.on("close", (code) => {
     projectRemove.removed === false &&
     projectRemove.sessionsRemoved === 0;
   const ctrlRBlocked = probe?.ctrlRBlocked === true;
+  const startupEvidence = bootStartupEvidence(out, dataDir);
+  const { sidecarReady, startupClean } = startupEvidence;
   if (
     code === 0 &&
+    sidecarReady && startupClean &&
     probe?.ok &&
     probe.appName === "PI-Desktop" &&
     probe.platform === process.platform &&
@@ -156,10 +172,11 @@ child.on("close", (code) => {
         `{removed:${probe.projectRemove.removed}, sessionsRemoved:${probe.projectRemove.sessionsRemoved}}`,
     );
     console.log("PASS E2E-072-main-window-ctrl-r-blocked");
+    console.log("PASS built Desktop backend startup — sidecar ready/configured, no error/fatal startup diagnostics");
     cleanup(0);
   } else {
     console.error("FAIL boot-probe —", JSON.stringify(probe));
-    console.error(out.slice(-2000));
+    console.error(startupEvidence.output.slice(-4000));
     cleanup(1);
   }
 });

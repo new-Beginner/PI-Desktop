@@ -1,6 +1,7 @@
 import { en, type EnglishCatalog } from "../en/index.js";
 
 export const ptBR = {
+  autonomousGoal: en.autonomousGoal,
   worktree: {
     menu: { group: "Git" },
     newIsolatedSession: "Nova sessão isolada",
@@ -2212,6 +2213,8 @@ export const ptBR = {
       reviewScope: "Review scope",
       reviewSettings: "Review settings",
       wordWrap: "Word wrap",
+      expandAll: "Expandir tudo",
+      collapseAll: "Recolher tudo",
       contextDisplay: "Context lines",
       fileActions: "Ações do arquivo",
       openInternal: "Abrir internamente",

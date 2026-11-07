@@ -170,9 +170,14 @@ globalThis.sessionReadingPositionProbe = async () => {
       "explicit search can still load later pages manually");
     const jump = host.querySelector<HTMLButtonElement>('[data-visible="true"] .jump-latest-btn')!;
     flushSync(() => jump.click());
-    await until(() => !useAppStore.getState().transcriptViews["real-A"] &&
-      Math.abs(scroller().scrollHeight - scroller().clientHeight - scroller().scrollTop) < 2,
-    "return to latest exits history and resumes follow");
+    await until(() => {
+      const view = useAppStore.getState().transcriptViews["real-A"];
+      return !view?.focus && !view?.restored &&
+        Math.abs(scroller().scrollHeight - scroller().clientHeight - scroller().scrollTop) < 2;
+    }, "return to latest clears historical focus and resumes follow");
+    assert(useAppStore.getState().transcriptViews["real-A"]?.messages.some((message) => message.id === id),
+      "return to latest retains connected history pages");
+    assert(useAppStore.getState().messages[0]?.id === "real-m110", "return to latest changed model input");
     assert(unexpected.length === 0, `unexpected IPC: ${unexpected}`);
     return { ok: true, anchor: id, restoredOffset, aroundReads, panes: 3 };
   } catch (error) {
