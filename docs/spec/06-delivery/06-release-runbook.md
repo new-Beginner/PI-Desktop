@@ -684,3 +684,5 @@ Artifacts contain Setup EXE, Portable EXE, ZIP, `SHA256SUMS.txt` and
 The recorder verifies package versions and all four sources. ZIP distribution
 is `zip`; final unpacked output is `portable`. Portable packaging does not
 isolate user data; use a backup or an explicitly isolated data directory.
+Automated history tests explicitly exercise normal and reduced motion in the
+isolated renderer rather than assuming the runner's OS animation preference.

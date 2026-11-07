@@ -571,3 +571,5 @@ Artifacts contain Setup EXE, Portable EXE, ZIP, source metadata and SHA-256
 checksums, retained for 14 days without publishing a Release or update feed.
 ZIP distribution is `zip`; final unpacked output is `portable`. Portable
 packaging does not isolate data; use backups or an explicit isolated data path.
+Automated history checks control normal/reduced motion only in the isolated
+renderer; they do not depend on or change the runner's OS preference.

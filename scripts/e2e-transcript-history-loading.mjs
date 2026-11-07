@@ -52,6 +52,14 @@ app.whenReady().then(async () => {
  try {
   await win.loadFile(require('node:path').join(__dirname, 'index.html'), { query: ${JSON.stringify(manual || manualSmoke ? { manual: "1" } : {})} });
   await js('new Promise((resolve,reject)=>{const end=performance.now()+10000;const check=()=>{if(globalThis.historyLoadingFixture)resolve();else if(performance.now()>end)reject(new Error("fixture did not initialize"));else requestAnimationFrame(check)};check()})');
+  if (!${manual}) {
+    win.webContents.debugger.attach('1.3');
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+    });
+    await js('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    assert.equal(await js('matchMedia("(prefers-reduced-motion: reduce)").matches'), false, 'Normal-motion cases require no-preference');
+  }
   console.log('HISTORY_MOTION ' + await js('JSON.stringify({ reduced: matchMedia("(prefers-reduced-motion: reduce)").matches })'));
   if (${manual}) return;
   if (${manualSmoke}) {
@@ -185,7 +193,6 @@ app.whenReady().then(async () => {
   assert(Math.abs(navigation.distanceFromBottom) <= 2, 'late page stole explicit latest navigation');
   const realNavigation = await js('globalThis.transcriptHistoryNavigationProbe()');
   console.log('REAL_HISTORY_NAVIGATION_PROBE ' + JSON.stringify(realNavigation));
-  win.webContents.debugger.attach('1.3');
   try {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
       features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
