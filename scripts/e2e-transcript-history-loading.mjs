@@ -37,6 +37,7 @@ const { app, BrowserWindow } = require('electron');
 const assert = require('node:assert/strict');
 app.setPath('userData', require('node:path').join(__dirname, 'profile'));
 app.disableHardwareAcceleration();
+if (!${manual}) app.commandLine.appendSwitch('enable-smooth-scrolling');
 app.on('window-all-closed', () => app.quit());
 app.whenReady().then(async () => {
  const win = new BrowserWindow({ show: true, width: 1100, height: 720, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
