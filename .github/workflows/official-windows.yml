@@ -33,6 +33,7 @@ jobs:
       TMPDIR: ${{ github.workspace }}/Temp/tmp
       npm_config_cache: ${{ github.workspace }}/Temp/cache/npm
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      ELECTRON_OVERRIDE_DIST_PATH: ${{ github.workspace }}/Temp/electron-dist
     steps:
       - name: Prepare workspace-local temporary directories
         working-directory: ${{ github.workspace }}
@@ -69,11 +70,19 @@ jobs:
         with:
           workspaces: source -> target
 
-      - name: Install locked dependencies and Electron
+      - name: Install locked dependencies and verify official Electron download
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile 2>&1 | tee "$PI_SCRATCH_DIR/install.log"
-          pnpm --filter @pi-desktop/desktop exec install-electron
+          pnpm --filter @pi-desktop/desktop exec node -e 'require("node:assert/strict").equal(require("electron/package.json").version, "43.6.0")'
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 --max-time 300 \
+            -H 'Accept: application/octet-stream' \
+            'https://api.github.com/repos/electron/electron/releases/assets/543588552' \
+            --output "$PI_SCRATCH_DIR/electron.zip"
+          printf '%s  %s\n' '4140545d6ed47b59c35900f266dea6c02f4a5496069ece7f6e7bc825e0d959c2' "$PI_SCRATCH_DIR/electron.zip" | sha256sum -c -
+          pwsh -NoProfile -Command 'Expand-Archive -LiteralPath (Join-Path $env:PI_SCRATCH_DIR "electron.zip") -DestinationPath $env:ELECTRON_OVERRIDE_DIST_PATH -Force'
+          pnpm --filter @pi-desktop/desktop exec node -e 'const {dirname,join}=require("node:path"); require("node:fs").writeFileSync(join(dirname(require.resolve("electron/package.json")), "path.txt"), "electron.exe");'
+          pnpm --filter @pi-desktop/desktop exec electron --version
 
       - name: Build the complete official workspace and Rust Host
         run: |
@@ -87,7 +96,7 @@ jobs:
         id: package
         run: |
           set -euo pipefail
-          pnpm --filter @pi-desktop/desktop run dist:win --x64 2>&1 | tee "$PI_SCRATCH_DIR/package.log"
+          pnpm --filter @pi-desktop/desktop run dist:win --x64 -c.electronDist="$ELECTRON_OVERRIDE_DIST_PATH" 2>&1 | tee "$PI_SCRATCH_DIR/package.log"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=no)"
 
