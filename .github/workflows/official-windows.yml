@@ -34,6 +34,8 @@ jobs:
       npm_config_cache: ${{ github.workspace }}/Temp/cache/npm
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       ELECTRON_OVERRIDE_DIST_PATH: ${{ github.workspace }}/Temp/electron-dist
+      ELECTRON_BUILDER_NSIS_DIR: ${{ github.workspace }}/Temp/nsis
+      ELECTRON_BUILDER_NSIS_RESOURCES_DIR: ${{ github.workspace }}/Temp/nsis-resources
     steps:
       - name: Prepare workspace-local temporary directories
         working-directory: ${{ github.workspace }}
@@ -83,6 +85,25 @@ jobs:
           pwsh -NoProfile -Command 'Expand-Archive -LiteralPath (Join-Path $env:PI_SCRATCH_DIR "electron.zip") -DestinationPath $env:ELECTRON_OVERRIDE_DIST_PATH -Force'
           pnpm --filter @pi-desktop/desktop exec node -e 'const {dirname,join}=require("node:path"); require("node:fs").writeFileSync(join(dirname(require.resolve("electron/package.json")), "path.txt"), "electron.exe");'
           pnpm --filter @pi-desktop/desktop exec electron --version
+
+      - name: Verify and prepare official NSIS tools
+        run: |
+          set -euo pipefail
+          fetch_tool() {
+            local asset="$1" name="$2" checksum="$3"
+            curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 --max-time 300 \
+              -H 'Accept: application/octet-stream' \
+              "https://api.github.com/repos/electron-userland/electron-builder-binaries/releases/assets/$asset" \
+              --output "$PI_SCRATCH_DIR/$name.7z"
+            printf '%s  %s\n' "$checksum" "$PI_SCRATCH_DIR/$name.7z" | sha256sum -c -
+          }
+          fetch_tool '16428442' 'nsis' '9877df902530f96357d13a7a31ae2b9df67f48b11ffc9a1700a7c961574ec5fa'
+          fetch_tool '13752602' 'nsis-resources' '593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103'
+          mkdir -p "$ELECTRON_BUILDER_NSIS_DIR" "$ELECTRON_BUILDER_NSIS_RESOURCES_DIR"
+          pwsh -NoProfile -Command '$tar=Join-Path $env:SystemRoot "System32/tar.exe"; & $tar -xf (Join-Path $env:PI_SCRATCH_DIR "nsis.7z") -C $env:ELECTRON_BUILDER_NSIS_DIR; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; & $tar -xf (Join-Path $env:PI_SCRATCH_DIR "nsis-resources.7z") -C $env:ELECTRON_BUILDER_NSIS_RESOURCES_DIR; exit $LASTEXITCODE'
+          test -f "$ELECTRON_BUILDER_NSIS_DIR/Bin/makensis.exe"
+          test -f "$ELECTRON_BUILDER_NSIS_DIR/elevate.exe"
+          test -d "$ELECTRON_BUILDER_NSIS_RESOURCES_DIR/plugins"
 
       - name: Build the complete official workspace and Rust Host
         run: |
