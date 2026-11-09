@@ -1,0 +1,180 @@
+name: Official source Windows x64 build
+run-name: Build official v0.22.0 Windows x64 (${{ github.run_number }})
+
+on:
+  push:
+    branches: [build/official-windows-7e1095fb]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: official-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: github.repository == 'new-Beginner/PI-Desktop'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: source
+    env:
+      SOURCE_REPOSITORY: vastsa/PI-Desktop
+      SOURCE_REF: v0.22.0
+      SOURCE_COMMIT: 589b6703fcfdfd257ebd7fc0551321f0049a3a67
+      SOURCE_VERSION: 0.22.0
+      PI_SCRATCH_DIR: ${{ github.workspace }}/Temp
+      PI_DESKTOP_AGENTS_DIR: ${{ github.workspace }}/Temp/agents
+      TMP: ${{ github.workspace }}/Temp/tmp
+      TEMP: ${{ github.workspace }}/Temp/tmp
+      TMPDIR: ${{ github.workspace }}/Temp/tmp
+      npm_config_cache: ${{ github.workspace }}/Temp/cache/npm
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Prepare workspace-local temporary directories
+        working-directory: ${{ github.workspace }}
+        run: mkdir -p "$PI_SCRATCH_DIR/tmp" "$PI_SCRATCH_DIR/agents" "$PI_SCRATCH_DIR/cache/npm"
+
+      - name: Check out the exact official release source
+        uses: actions/checkout@v7
+        with:
+          repository: vastsa/PI-Desktop
+          ref: 589b6703fcfdfd257ebd7fc0551321f0049a3a67
+          path: source
+          persist-credentials: false
+
+      - name: Verify source identity and version
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          node -e 'const assert=require("node:assert/strict"); for (const file of ["./package.json","./apps/desktop/package.json"]) assert.equal(require(file).version, process.env.SOURCE_VERSION);'
+          git log -1 --format='Source commit: %H%nSource date: %cI%nSubject: %s'
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: source/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: source/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: source -> target
+
+      - name: Install locked dependencies and Electron
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee "$PI_SCRATCH_DIR/install.log"
+          pnpm --filter @pi-desktop/desktop exec install-electron
+
+      - name: Build the complete official workspace and Rust Host
+        run: |
+          set -euo pipefail
+          pnpm build 2>&1 | tee "$PI_SCRATCH_DIR/build.log"
+
+      - name: Typecheck Desktop
+        run: pnpm --filter @pi-desktop/desktop typecheck
+
+      - name: Package unsigned Windows x64 installers without publishing
+        id: package
+        run: |
+          set -euo pipefail
+          pnpm --filter @pi-desktop/desktop run dist:win --x64 2>&1 | tee "$PI_SCRATCH_DIR/package.log"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=no)"
+
+      - name: Verify the packaged Desktop starts with an isolated profile
+        id: smoke
+        run: |
+          set -euo pipefail
+          node scripts/e2e-electron-boot.mjs apps/desktop/release/win-unpacked/PI-Desktop.exe 2>&1 | tee "$PI_SCRATCH_DIR/boot.log"
+
+      - name: Verify architecture and record package hashes and provenance
+        if: always() && steps.package.outcome == 'success'
+        env:
+          BOOT_RESULT: ${{ steps.smoke.outcome }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import { createReadStream, openSync, closeSync, readSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import { join } from 'node:path';
+          const output = 'apps/desktop/release';
+          const version = process.env.SOURCE_VERSION;
+          const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          assert.equal(commit, process.env.SOURCE_COMMIT);
+          const binaries = [
+            join(output, 'win-unpacked/PI-Desktop.exe'),
+            join(output, 'win-unpacked/resources/bin/pi-desktop-host-core.exe'),
+          ];
+          for (const binary of binaries) {
+            const fd = openSync(binary, 'r');
+            try {
+              const dos = Buffer.alloc(64);
+              assert.equal(readSync(fd, dos, 0, dos.length, 0), dos.length);
+              assert.equal(dos.readUInt16LE(0), 0x5a4d);
+              const pe = Buffer.alloc(6);
+              assert.equal(readSync(fd, pe, 0, pe.length, dos.readUInt32LE(0x3c)), pe.length);
+              assert.equal(pe.readUInt32LE(0), 0x4550);
+              assert.equal(pe.readUInt16LE(4), 0x8664, `${binary} must be x64`);
+            } finally { closeSync(fd); }
+          }
+          const required = [
+            `PI-Desktop-Setup-${version}.exe`,
+            `PI-Desktop-Portable-${version}.exe`,
+            `PI-Desktop-Portable-${version}.zip`,
+          ];
+          const names = readdirSync(output).filter(name => /\.(exe|zip|blockmap)$/.test(name)).sort();
+          for (const name of required) assert.ok(names.includes(name), `Missing package: ${name}`);
+          const packages = [];
+          for (const name of names) {
+            const path = join(output, name);
+            const sha = createHash('sha256');
+            for await (const chunk of createReadStream(path)) sha.update(chunk);
+            packages.push({ name, bytes: statSync(path).size, sha256: sha.digest('hex') });
+          }
+          writeFileSync(join(output, 'SHA256SUMS.txt'), packages.map(p => `${p.sha256}  ${p.name}`).join('\n') + '\n');
+          const provenance = {
+            sourceRepository: `https://github.com/${process.env.SOURCE_REPOSITORY}`,
+            sourceRef: process.env.SOURCE_REF,
+            sourceCommit: commit,
+            version,
+            platform: process.platform,
+            architecture: process.arch,
+            node: process.version,
+            pnpm: execFileSync('pnpm.cmd', ['--version'], { encoding: 'utf8', shell: true }).trim(),
+            rust: execFileSync('rustc', ['--version'], { encoding: 'utf8' }).trim(),
+            workflowCommit: process.env.GITHUB_SHA,
+            runUrl: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            packagedBoot: process.env.BOOT_RESULT,
+            signed: false,
+            packages,
+          };
+          writeFileSync(join(output, 'build-info.json'), JSON.stringify(provenance, null, 2) + '\n');
+          console.log(JSON.stringify(provenance, null, 2));
+          NODE
+
+      - name: Upload Windows packages and verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: PI-Desktop-0.22.0-Windows-x64-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          path: |
+            source/apps/desktop/release/*.exe
+            source/apps/desktop/release/*.zip
+            source/apps/desktop/release/*.blockmap
+            source/apps/desktop/release/SHA256SUMS.txt
+            source/apps/desktop/release/build-info.json
+            Temp/*.log
